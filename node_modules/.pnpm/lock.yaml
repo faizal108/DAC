@@ -1,0 +1,76 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  packages/adapters/adapter-mouse:
+    dependencies:
+      '@dac/core-workspace':
+        specifier: workspace:*
+        version: link:../../core-workspace
+
+  packages/adapters/adapter-usb:
+    dependencies:
+      '@dac/core-workspace':
+        specifier: workspace:*
+        version: link:../../core-workspace
+
+  packages/adapters/adapter-websocket:
+    dependencies:
+      '@dac/core-workspace':
+        specifier: workspace:*
+        version: link:../../core-workspace
+
+  packages/core-commands:
+    dependencies:
+      '@dac/core-geometry':
+        specifier: workspace:*
+        version: link:../core-geometry
+      '@dac/core-scene':
+        specifier: workspace:*
+        version: link:../core-scene
+
+  packages/core-events: {}
+
+  packages/core-geometry: {}
+
+  packages/core-scene:
+    dependencies:
+      '@dac/core-geometry':
+        specifier: workspace:*
+        version: link:../core-geometry
+
+  packages/core-workspace:
+    dependencies:
+      '@dac/core-commands':
+        specifier: workspace:*
+        version: link:../core-commands
+      '@dac/core-events':
+        specifier: workspace:*
+        version: link:../core-events
+      '@dac/core-scene':
+        specifier: workspace:*
+        version: link:../core-scene
+
+  packages/examples/web-app:
+    dependencies:
+      '@dac/adapter-mouse':
+        specifier: workspace:*
+        version: link:../../adapters/adapter-mouse
+      '@dac/core-workspace':
+        specifier: workspace:*
+        version: link:../../core-workspace
+      '@dac/renderer-canvas':
+        specifier: workspace:*
+        version: link:../../renderer-canvas
+
+  packages/renderer-canvas:
+    dependencies:
+      '@dac/core-scene':
+        specifier: workspace:*
+        version: link:../core-scene

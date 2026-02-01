@@ -1,0 +1,19 @@
+{
+  "name": "@dac/core-workspace",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.js",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@dac/core-commands": "workspace:*",
+    "@dac/core-scene": "workspace:*",
+    "@dac/core-events": "workspace:*"
+  }
+}

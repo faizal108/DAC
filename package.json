@@ -1,0 +1,22 @@
+{
+  "name": "dac",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DAC (Direct Automated CAD) is an automated 2D drafting system that converts digital inputs into machine-driven drawings with high precision, enabling direct design-to-output workflows for engineering and manufacturing.",
+  "type": "module",
+  "scripts": {
+    "install:all": "pnpm install",
+    "clean": "rm -rf node_modules packages/**/node_modules pnpm-lock.yaml",
+    "check": "pnpm install",
+    "start:web": "pnpm --filter @dac/web-app start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/faizal108/DAC.git"
+  },
+  "bugs": {
+    "url": "https://github.com/faizal108/DAC/issues"
+  },
+  "homepage": "https://github.com/faizal108/DAC#readme",
+  "license": "ISC"
+}

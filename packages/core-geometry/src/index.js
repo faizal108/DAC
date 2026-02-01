@@ -27,3 +27,7 @@ export * from "./ops/transforms.js";
 // Snapping & Measure
 export * from "./ops/snap.js";
 export * from "./ops/measure.js";
+
+// Trim & Extend
+export * from "./ops/trim.js";
+export * from "./ops/extend.js";

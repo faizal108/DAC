@@ -19,3 +19,7 @@ export * from "./primitives/arc.js";
 
 // Curve ops
 export * from "./ops/circle-intersections.js";
+
+// Transforms
+export * from "./ops/matrix.js";
+export * from "./ops/transforms.js";

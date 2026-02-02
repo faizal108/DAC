@@ -1,5 +1,6 @@
 import { EntityStore } from "./EntityStore.js";
 import { LayerManager } from "./LayerManager.js";
+import { Selection } from "./Selection.js";
 
 /**
  * Scene: system of record
@@ -8,6 +9,7 @@ export class Scene {
   constructor() {
     this._store = new EntityStore();
     this.layers = new LayerManager();
+    this.selection = new Selection(this);
 
     this._idCounter = 1;
 

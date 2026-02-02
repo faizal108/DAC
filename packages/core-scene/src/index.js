@@ -6,3 +6,6 @@ export * from "./scene/LayerManager.js";
 export * from "./scene/Selection.js";
 
 export * from "./scene/SpatialIndex.js";
+
+export * from "./scene/Serializer.js";
+

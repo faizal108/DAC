@@ -1,6 +1,7 @@
 import { EntityStore } from "./EntityStore.js";
 import { LayerManager } from "./LayerManager.js";
 import { Selection } from "./Selection.js";
+import { SpatialIndex } from "./SpatialIndex.js";
 
 /**
  * Scene: system of record
@@ -10,6 +11,7 @@ export class Scene {
     this._store = new EntityStore();
     this.layers = new LayerManager();
     this.selection = new Selection(this);
+    this.index = new SpatialIndex();
 
     this._idCounter = 1;
 
@@ -51,6 +53,7 @@ export class Scene {
     };
 
     this._store.add(entity);
+    this.index.insert(entity);
 
     this._touch();
 
@@ -67,6 +70,7 @@ export class Scene {
 
   remove(id) {
     const ok = this._store.remove(id);
+    this.index.remove(id);
 
     if (ok) this._touch();
 
@@ -94,13 +98,16 @@ export class Scene {
       },
     };
 
+    this.index.remove(id);
     this._store.replace(id, updated);
+    this.index.insert(updated);
 
     this._touch();
   }
 
   clear() {
     this._store.clear();
+    this.index.clear();
     this._touch();
   }
 

@@ -1,4 +1,5 @@
 import { EntityStore } from "./EntityStore.js";
+import { LayerManager } from "./LayerManager.js";
 
 /**
  * Scene: system of record
@@ -6,6 +7,7 @@ import { EntityStore } from "./EntityStore.js";
 export class Scene {
   constructor() {
     this._store = new EntityStore();
+    this.layers = new LayerManager();
 
     this._idCounter = 1;
 
@@ -26,12 +28,17 @@ export class Scene {
   add(geometry, opts = {}) {
     const id = this._nextId();
 
+    const layerId = opts.layerId || "default";
+
+    if (!this.layers.get(layerId)) {
+      throw new Error(`Layer ${layerId} does not exist`);
+    }
     const entity = {
       id,
       type: geometry.type,
       geometry,
 
-      layerId: opts.layerId || "default",
+      layerId,
       visible: opts.visible ?? true,
       locked: opts.locked ?? false,
 

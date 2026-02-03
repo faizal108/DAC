@@ -9,6 +9,7 @@ export function createPoint(xMm, yMm) {
   const y = toInternal(yMm);
 
   return Object.freeze({
+    type: "POINT", // ✅ ADD THIS
     x,
     y,
   });
@@ -23,6 +24,7 @@ export function createPointInternal(xUm, yUm) {
   }
 
   return Object.freeze({
+    type: "POINT", // ✅ ADD THIS
     x: xUm,
     y: yUm,
   });

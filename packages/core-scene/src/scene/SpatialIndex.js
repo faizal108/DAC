@@ -104,18 +104,39 @@ export class SpatialIndex {
   _computeKeys(entity) {
     let box;
 
-    if (entity.type === "LINE") {
-      box = bboxLine(entity.geometry);
-    } else {
-      // fallback: use center
-      const c = entity.geometry.center;
+    const g = entity.geometry;
 
-      box = {
-        minX: c.x,
-        minY: c.y,
-        maxX: c.x,
-        maxY: c.y,
-      };
+    switch (g.type) {
+      case "LINE": {
+        box = bboxLine(g);
+        break;
+      }
+
+      case "CIRCLE":
+      case "ARC": {
+        const c = g.center;
+        const r = g.radius;
+
+        box = {
+          minX: c.x - r,
+          minY: c.y - r,
+          maxX: c.x + r,
+          maxY: c.y + r,
+        };
+        break;
+      }
+
+      case "POINT":
+      default: {
+        // Point or unknown → treat as single cell
+        box = {
+          minX: g.x,
+          minY: g.y,
+          maxX: g.x,
+          maxY: g.y,
+        };
+        break;
+      }
     }
 
     const minCX = worldToCell(box.minX);

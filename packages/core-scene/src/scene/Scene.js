@@ -78,6 +78,21 @@ export class Scene {
   }
 
   /**
+   * Internal: restore full entity (for undo)
+   */
+  _restoreEntity(entity) {
+    // Remove current version
+    this._store.remove(entity.id);
+    this.index.remove(entity.id);
+
+    // Restore
+    this._store.add(entity);
+    this.index.insert(entity);
+
+    this._touch();
+  }
+
+  /**
    * Replace geometry of entity
    */
   replace(id, newGeometry) {
@@ -90,6 +105,7 @@ export class Scene {
     const updated = {
       ...old,
 
+      type: newGeometry.type,
       geometry: newGeometry,
 
       meta: {

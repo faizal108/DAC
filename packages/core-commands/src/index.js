@@ -7,3 +7,7 @@ export * from "./manager/CommandManager.js";
 
 export * from "./commands/TransactionCommand.js";
 export * from "./commands/MacroCommand.js";
+
+export * from "./scripting/ApiFacade.js";
+export * from "./scripting/ScriptContext.js";
+export * from "./scripting/PluginManager.js";

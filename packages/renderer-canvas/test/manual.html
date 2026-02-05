@@ -9,7 +9,7 @@
     ></canvas>
 
     <script type="module">
-      import { CanvasRenderer, ViewTransform } from "../src/index.js";
+      import { CanvasRenderer, ViewTransform, Viewport } from "../src/index.js";
 
       import {
         createPoint,
@@ -26,6 +26,7 @@
       tf.offsetY = 300;
 
       const r = new CanvasRenderer(canvas, tf);
+      const vp = new Viewport(tf, canvas);
 
       const entities = [
         {
@@ -44,7 +45,12 @@
         },
       ];
 
-      r.drawAll(entities);
+      function loop() {
+        r.drawAll(entities);
+        requestAnimationFrame(loop);
+      }
+
+      loop();
     </script>
   </body>
 </html>

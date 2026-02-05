@@ -58,9 +58,43 @@ export class CanvasRenderer {
 
   drawAll(entities) {
     this.clear();
+    this.drawGrid();
 
     for (const e of entities) {
       this.drawEntity(e);
     }
+  }
+
+  drawGrid(spacingMm = 10) {
+    const ctx = this.ctx;
+    const tf = this.transform;
+
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+
+    const spacingPx = spacingMm * tf.scale;
+
+    ctx.save();
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 1;
+
+    const ox = tf.offsetX % spacingPx;
+    const oy = tf.offsetY % spacingPx;
+
+    for (let x = ox; x < w; x += spacingPx) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+
+    for (let y = oy; y < h; y += spacingPx) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 }

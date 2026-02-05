@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <body>
+    <canvas
+      id="c"
+      width="800"
+      height="600"
+      style="border: 1px solid black"
+    ></canvas>
+
+    <script type="module">
+      import { CanvasRenderer, ViewTransform } from "../src/index.js";
+
+      import {
+        createPoint,
+        createLine,
+        createCircle,
+      } from "../../core-geometry/src/index.js";
+
+      const canvas = document.getElementById("c");
+
+      const tf = new ViewTransform();
+
+      tf.scale = 40;
+      tf.offsetX = 400;
+      tf.offsetY = 300;
+
+      const r = new CanvasRenderer(canvas, tf);
+
+      const entities = [
+        {
+          type: "POINT",
+          geometry: createPoint(0, 0),
+        },
+
+        {
+          type: "LINE",
+          geometry: createLine(createPoint(-5, -5), createPoint(5, 5)),
+        },
+
+        {
+          type: "CIRCLE",
+          geometry: createCircle(createPoint(3, 2), 2000),
+        },
+      ];
+
+      r.drawAll(entities);
+    </script>
+  </body>
+</html>

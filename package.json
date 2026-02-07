@@ -8,7 +8,8 @@
     "install:all": "pnpm install",
     "clean": "rm -rf node_modules packages/**/node_modules pnpm-lock.yaml",
     "check": "pnpm install",
-    "start:web": "pnpm --filter @dac/web-app start"
+    "start:web": "pnpm --filter @dac/web-app start",
+    "dev:serial": "pnpm --filter @dac/adapter-serial test"
   },
   "repository": {
     "type": "git",

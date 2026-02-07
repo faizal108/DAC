@@ -9,48 +9,85 @@
     ></canvas>
 
     <script type="module">
+      /* Renderer */
       import { CanvasRenderer, ViewTransform, Viewport } from "../src/index.js";
 
+      /* Geometry */
       import {
         createPoint,
         createLine,
-        createCircle,
       } from "../../core-geometry/src/index.js";
 
+      /* Workspace */
+      import {
+        Workspace,
+        SelectTool,
+        LineTool,
+      } from "../../core-workspace/src/index.js";
+
+      /* Commands */
+      import { CommandManager } from "../../core-commands/src/index.js";
+
+      /* Scene */
+      import { Scene } from "../../core-scene/src/index.js";
+
+      /* Canvas */
       const canvas = document.getElementById("c");
 
+      /* Transform */
       const tf = new ViewTransform();
 
       tf.scale = 40;
       tf.offsetX = 400;
       tf.offsetY = 300;
 
-      const r = new CanvasRenderer(canvas, tf);
-      const vp = new Viewport(tf, canvas);
+      /* Renderer */
+      const renderer = new CanvasRenderer(canvas, tf);
 
-      const entities = [
-        {
-          type: "POINT",
-          geometry: createPoint(0, 0),
-        },
+      /* Viewport */
+      const viewport = new Viewport(tf, canvas);
 
-        {
-          type: "LINE",
-          geometry: createLine(createPoint(-5, -5), createPoint(5, 5)),
-        },
+      /* Scene + Commands */
+      const scene = new Scene();
+      const commands = new CommandManager(scene);
 
-        {
-          type: "CIRCLE",
-          geometry: createCircle(createPoint(3, 2), 2000),
-        },
-      ];
+      /* Workspace */
+      const ws = new Workspace(canvas, scene, renderer, tf);
 
+      ws.commands = commands;
+
+      /* Default tool */
+      ws.tools.set(new SelectTool(ws));
+
+      /* Tool switching */
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "l") {
+          ws.tools.set(new LineTool(ws));
+          console.log("Line tool");
+        }
+
+        if (e.key === "s") {
+          ws.tools.set(new SelectTool(ws));
+          console.log("Select tool");
+        }
+      });
+
+      /* Render loop */
       function loop() {
-        r.drawAll(entities);
+        renderer.drawAll(scene.getAll());
+
+        const tool = ws.tools.get();
+
+        if (tool?.drawOverlay) {
+          tool.drawOverlay(renderer.ctx);
+        }
+
         requestAnimationFrame(loop);
       }
 
       loop();
+
+      console.log("Workspace ready. Press L (line), S (select)");
     </script>
   </body>
 </html>

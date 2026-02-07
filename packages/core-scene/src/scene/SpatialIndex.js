@@ -17,17 +17,21 @@ export class SpatialIndex {
   constructor() {
     this._cells = new Map(); // key -> Set<id>
     this._entityMap = new Map(); // id -> [keys]
+    this._entities = new Map(); // id -> entity   
   }
 
   clear() {
     this._cells.clear();
     this._entityMap.clear();
+    this._entities.clear(); 
   }
 
   /**
    * Insert entity
    */
   insert(entity) {
+    this._entities.set(entity.id, entity);
+
     const keys = this._computeKeys(entity);
 
     this._entityMap.set(entity.id, keys);
@@ -62,6 +66,7 @@ export class SpatialIndex {
     }
 
     this._entityMap.delete(id);
+    this._entities.delete(id);
   }
 
   /**
@@ -99,6 +104,74 @@ export class SpatialIndex {
     }
 
     return Array.from(out);
+  }
+
+  /**
+   * Query entities near a world point
+   */
+  queryPoint(p, radiusUm = 1000) {
+    const result = [];
+
+    const r2 = radiusUm * radiusUm;
+
+    // Brute force scan (safe)
+    for (const e of this._entities.values()) {
+      const g = e.geometry;
+
+      let d2 = Infinity;
+
+      if (g.type === "POINT") {
+        const dx = g.x - p.x;
+        const dy = g.y - p.y;
+
+        d2 = dx * dx + dy * dy;
+      }
+
+      if (g.type === "LINE") {
+        d2 = this._distPointToLine2(p, g.start, g.end);
+      }
+
+      if (g.type === "CIRCLE") {
+        const dx = g.center.x - p.x;
+        const dy = g.center.y - p.y;
+
+        const d = Math.hypot(dx, dy);
+
+        d2 = Math.abs(d - g.radius) ** 2;
+      }
+
+      if (d2 <= r2) {
+        result.push(e);
+      }
+    }
+
+    return result;
+  }
+
+  _distPointToLine2(p, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+
+    const l2 = dx * dx + dy * dy;
+
+    if (l2 === 0) {
+      const px = p.x - a.x;
+      const py = p.y - a.y;
+
+      return px * px + py * py;
+    }
+
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+
+    t = Math.max(0, Math.min(1, t));
+
+    const x = a.x + t * dx;
+    const y = a.y + t * dy;
+
+    const px = p.x - x;
+    const py = p.y - y;
+
+    return px * px + py * py;
   }
 
   _computeKeys(entity) {

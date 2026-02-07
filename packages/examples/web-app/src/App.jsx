@@ -5,7 +5,13 @@ import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 import { Scene } from "@dac/core-scene";
 import { CommandManager } from "@dac/core-commands";
 
-import { Workspace, SelectTool, LineTool } from "@dac/core-workspace";
+import {
+  Workspace,
+  SelectTool,
+  LineTool,
+  CircleTool,
+  TrimTool,
+} from "@dac/core-workspace";
 
 export function App() {
   const canvasRef = useRef(null);
@@ -35,9 +41,22 @@ export function App() {
     window.addEventListener("keydown", (e) => {
       if (e.key === "l") {
         ws.tools.set(new LineTool(ws));
+        console.log("Line");
       }
+
+      if (e.key === "c") {
+        ws.tools.set(new CircleTool(ws));
+        console.log("Circle");
+      }
+
+      if (e.key === "t") {
+        ws.tools.set(new TrimTool(ws));
+        console.log("Trim");
+      }
+
       if (e.key === "s") {
         ws.tools.set(new SelectTool(ws));
+        console.log("Select");
       }
     });
 

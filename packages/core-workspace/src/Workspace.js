@@ -1,4 +1,5 @@
 import { ToolManager } from "./ToolManager.js";
+import { SnapEngine } from "./tools/SnapEngine.js";
 
 export class Workspace {
   constructor(canvas, scene, renderer, transform) {
@@ -8,6 +9,8 @@ export class Workspace {
     this.transform = transform;
 
     this.tools = new ToolManager(this);
+    this.snap = new SnapEngine(scene);
+    this.lastMouse = null;
 
     this._bind();
   }
@@ -30,12 +33,17 @@ export class Workspace {
 
   _onDown(e) {
     const p = this._worldPos(e);
-
+    console.log("CLICK world:", p);
     this.tools.get()?.onMouseDown(p, e);
   }
 
   _onMove(e) {
-    const p = this._worldPos(e);
+    let p = this._worldPos(e);
+
+    this.lastMouse = p;
+
+    // Apply snap
+    p = this.snap.snap(p, this.transform);
 
     this.tools.get()?.onMouseMove(p, e);
   }

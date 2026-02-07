@@ -1,0 +1,71 @@
+import { useEffect, useRef } from "react";
+
+import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
+
+import { Scene } from "@dac/core-scene";
+import { CommandManager } from "@dac/core-commands";
+
+import { Workspace, SelectTool, LineTool } from "@dac/core-workspace";
+
+export function App() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    const tf = new ViewTransform();
+
+    tf.scale = 40;
+    tf.offsetX = 400;
+    tf.offsetY = 300;
+
+    const renderer = new CanvasRenderer(canvas, tf);
+
+    new Viewport(tf, canvas);
+
+    const scene = new Scene();
+    const mgr = new CommandManager(scene);
+
+    const ws = new Workspace(canvas, scene, renderer, tf);
+
+    ws.commands = mgr;
+
+    ws.tools.set(new SelectTool(ws));
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "l") {
+        ws.tools.set(new LineTool(ws));
+      }
+      if (e.key === "s") {
+        ws.tools.set(new SelectTool(ws));
+      }
+    });
+
+    function loop() {
+      renderer.drawAll(scene.getAll());
+
+      const tool = ws.tools.get();
+
+      if (tool?.drawOverlay) {
+        tool.drawOverlay(renderer.ctx);
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  }, []);
+
+  return (
+    <div style={{ height: "100vh" }}>
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
+        style={{
+          border: "1px solid black",
+        }}
+      />
+    </div>
+  );
+}

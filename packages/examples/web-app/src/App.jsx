@@ -18,28 +18,31 @@ import { ConfigService } from "@dac/core-config";
 import { AuthService } from "@dac/core-auth";
 import { LocalProvider } from "@dac/core-auth/Providers/LocalProvider";
 
-export function App() {
-  const canvasRef = useRef(null);
+import { MachineSession } from "@dac/core-machine";
 
-  // Core engine refs (stable, non-reactive)
+/* ----------------------------------------- */
+
+export function App() {
   const sceneRef = useRef(null);
   const commandMgrRef = useRef(null);
   const workspaceRef = useRef(null);
+  const machineSessionRef = useRef(null);
+  const rendererRef = useRef(null);
+  const transformRef = useRef(null);
+  const wsRef = useRef(null);
 
-  // UI-only state
   const [status, setStatus] = useState({
     x: 0,
     y: 0,
     zoom: 100,
-    grid: "10mm",
-    snap: true,
+    capture: "IDLE",
   });
 
   useEffect(() => {
     let disposed = false;
 
     async function init() {
-      // --- platform init (already correct) ---
+      /* ---------- platform ---------- */
       const config = new ConfigService();
       await config.load();
 
@@ -48,29 +51,53 @@ export function App() {
 
       if (disposed) return;
 
-      // --- canvas ---
+      /* ---------- canvas ---------- */
       const canvas = document.querySelector(".workspace");
 
       const tf = new ViewTransform();
       tf.scale = 40;
       tf.offsetX = 500;
       tf.offsetY = 350;
+      transformRef.current = tf;
 
       const renderer = new CanvasRenderer(canvas, tf);
+      rendererRef.current = renderer;
       new Viewport(tf, canvas);
 
-      // --- core engine ---
-      sceneRef.current = new Scene();
-      commandMgrRef.current = new CommandManager(sceneRef.current);
+      /* ---------- scene ---------- */
+      const scene = new Scene();
+      sceneRef.current = scene;
 
-      const ws = new Workspace(canvas, sceneRef.current, renderer, tf);
+      const commands = new CommandManager(scene);
+      commandMgrRef.current = commands;
 
-      ws.commands = commandMgrRef.current;
+      const ws = new Workspace(canvas, scene, renderer, tf);
+      ws.commands = commands;
       ws.tools.set(new SelectTool(ws));
-
       workspaceRef.current = ws;
 
-      // --- mouse tracking (UI only) ---
+      /* ---------- machine session ---------- */
+      const session = new MachineSession({ previewLimit: 1000 });
+      machineSessionRef.current = session;
+
+      session.on("state", (s) => {
+        setStatus((prev) => ({ ...prev, capture: s }));
+      });
+
+      /* ---------- WebSocket (Node bridge) ---------- */
+      const socket = new WebSocket("ws://localhost:8080");
+      wsRef.current = socket;
+
+      socket.onmessage = (e) => {
+        // e.data is "x,y"
+        session.ingest(e.data);
+      };
+
+      socket.onerror = (err) => {
+        console.error("WS error", err);
+      };
+
+      /* ---------- mouse tracking ---------- */
       canvas.addEventListener("mousemove", (e) => {
         const r = canvas.getBoundingClientRect();
         const p = tf.screenToWorld(e.clientX - r.left, e.clientY - r.top);
@@ -83,16 +110,17 @@ export function App() {
         }));
       });
 
-      // --- render loop ---
+      /* ---------- render loop ---------- */
       function loop() {
-        const scene = sceneRef.current;
-        const workspace = workspaceRef.current;
-
-        if (!scene || !workspace) return;
+        if (disposed) return;
 
         renderer.drawAll(scene.getAll(), scene.selection);
 
-        const tool = workspace.tools.get();
+        if (session.state === "CAPTURING") {
+          drawPreviewPolyline(renderer.ctx, session.preview, tf);
+        }
+
+        const tool = ws.tools.get();
         if (tool?.drawOverlay) {
           tool.drawOverlay(renderer.ctx);
         }
@@ -107,13 +135,24 @@ export function App() {
 
     return () => {
       disposed = true;
+      wsRef.current?.close();
     };
   }, []);
+
+  /* ---------- UI actions ---------- */
+  function startCapture() {
+    machineSessionRef.current?.start();
+  }
+
+  function stopCapture() {
+    machineSessionRef.current?.stop();
+  }
 
   return (
     <div className="main">
       <MenuBar />
-      <ToolBar />
+
+      <ToolBar onStartCapture={startCapture} onStopCapture={stopCapture} />
 
       <div className="content">
         <div className="workspace-container">
@@ -133,4 +172,26 @@ export function App() {
       <StatusBar status={status} />
     </div>
   );
+}
+
+/* ----------------------------------------- */
+
+function drawPreviewPolyline(ctx, points, tf) {
+  if (!points || points.length < 2) return;
+
+  ctx.save();
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  const p0 = tf.worldToScreen(points[0]);
+  ctx.moveTo(p0.x, p0.y);
+
+  for (let i = 1; i < points.length; i++) {
+    const p = tf.worldToScreen(points[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+
+  ctx.stroke();
+  ctx.restore();
 }

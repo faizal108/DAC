@@ -1,0 +1,11 @@
+{
+  "name": "@dac/core-machine",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "@dac/core-geometry": "workspace:*",
+    "@dac/core-commands": "workspace:*"
+  }
+}

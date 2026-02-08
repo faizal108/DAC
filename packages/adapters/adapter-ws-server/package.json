@@ -1,0 +1,13 @@
+{
+  "name": "@dac/adapter-ws-server",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "@dac/adapter-serial": "workspace:*"
+  }
+}

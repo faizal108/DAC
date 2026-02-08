@@ -4,6 +4,7 @@ import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 
 import { Scene } from "@dac/core-scene";
 import { CommandManager } from "@dac/core-commands";
+import { MachineController } from "@dac/core-machine";
 
 import {
   Workspace,
@@ -32,11 +33,28 @@ export function App() {
     const scene = new Scene();
     const mgr = new CommandManager(scene);
 
+    // Machine bridge
+    const machine = new MachineController(mgr);
+
     const ws = new Workspace(canvas, scene, renderer, tf);
 
     ws.commands = mgr;
 
     ws.tools.set(new SelectTool(ws));
+
+    // WebSocket to bridge
+    const wsConn = new WebSocket("ws://localhost:8080");
+
+    wsConn.onmessage = (e) => {
+      const evt = JSON.parse(e.data);
+      console.log("Received event:", evt);
+      
+      machine.onEvent(evt);
+    };
+
+    wsConn.onopen = () => {
+      console.log("WS connected");
+    };
 
     window.addEventListener("keydown", (e) => {
       if (e.key === "l") {

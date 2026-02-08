@@ -16,6 +16,9 @@ importers:
 
   packages/adapters/adapter-serial:
     dependencies:
+      '@serialport/parser-readline':
+        specifier: ^13.0.0
+        version: 13.0.0
       serialport:
         specifier: ^12.0.0
         version: 12.0.0
@@ -32,6 +35,15 @@ importers:
         specifier: workspace:*
         version: link:../../core-workspace
 
+  packages/adapters/adapter-ws-server:
+    dependencies:
+      '@dac/adapter-serial':
+        specifier: workspace:*
+        version: link:../adapter-serial
+      ws:
+        specifier: ^8.16.0
+        version: 8.19.0
+
   packages/core-commands:
     dependencies:
       '@dac/core-geometry':
@@ -44,6 +56,15 @@ importers:
   packages/core-events: {}
 
   packages/core-geometry: {}
+
+  packages/core-machine:
+    dependencies:
+      '@dac/core-commands':
+        specifier: workspace:*
+        version: link:../core-commands
+      '@dac/core-geometry':
+        specifier: workspace:*
+        version: link:../core-geometry
 
   packages/core-scene:
     dependencies:
@@ -601,6 +622,10 @@ packages:
     resolution: {integrity: sha512-gu26tVt5lQoybhorLTPsH2j2LnX3AOP2x/34+DUSTNaUTzu2fBXw+isVjQJpUBFWu6aeQRZw5bJol5X9Gxjblw==}
     engines: {node: '>=12.0.0'}
 
+  '@serialport/parser-delimiter@13.0.0':
+    resolution: {integrity: sha512-Qqyb0FX1avs3XabQqNaZSivyVbl/yl0jywImp7ePvfZKLwx7jBZjvL+Hawt9wIG6tfq6zbFM24vzCCK7REMUig==}
+    engines: {node: '>=20.0.0'}
+
   '@serialport/parser-inter-byte-timeout@12.0.0':
     resolution: {integrity: sha512-GnCh8K0NAESfhCuXAt+FfBRz1Cf9CzIgXfp7SdMgXwrtuUnCC/yuRTUFWRvuzhYKoAo1TL0hhUo77SFHUH1T/w==}
     engines: {node: '>=12.0.0'}
@@ -616,6 +641,10 @@ packages:
   '@serialport/parser-readline@12.0.0':
     resolution: {integrity: sha512-O7cywCWC8PiOMvo/gglEBfAkLjp/SENEML46BXDykfKP5mTPM46XMaX1L0waWU6DXJpBgjaL7+yX6VriVPbN4w==}
     engines: {node: '>=12.0.0'}
+
+  '@serialport/parser-readline@13.0.0':
+    resolution: {integrity: sha512-dov3zYoyf0dt1Sudd1q42VVYQ4WlliF0MYvAMA3MOyiU1IeG4hl0J6buBA2w4gl3DOCC05tGgLDN/3yIL81gsA==}
+    engines: {node: '>=20.0.0'}
 
   '@serialport/parser-ready@12.0.0':
     resolution: {integrity: sha512-ygDwj3O4SDpZlbrRUraoXIoIqb8sM7aMKryGjYTIF0JRnKeB1ys8+wIp0RFMdFbO62YriUDextHB5Um5cKFSWg==}
@@ -1148,6 +1177,18 @@ packages:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
 
+  ws@8.19.0:
+    resolution: {integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
@@ -1536,6 +1577,8 @@ snapshots:
 
   '@serialport/parser-delimiter@12.0.0': {}
 
+  '@serialport/parser-delimiter@13.0.0': {}
+
   '@serialport/parser-inter-byte-timeout@12.0.0': {}
 
   '@serialport/parser-packet-length@12.0.0': {}
@@ -1547,6 +1590,10 @@ snapshots:
   '@serialport/parser-readline@12.0.0':
     dependencies:
       '@serialport/parser-delimiter': 12.0.0
+
+  '@serialport/parser-readline@13.0.0':
+    dependencies:
+      '@serialport/parser-delimiter': 13.0.0
 
   '@serialport/parser-ready@12.0.0': {}
 
@@ -2076,6 +2123,8 @@ snapshots:
       isexe: 2.0.0
 
   word-wrap@1.2.5: {}
+
+  ws@8.19.0: {}
 
   yallist@3.1.1: {}
 

@@ -21,6 +21,12 @@ export default defineConfig({
         __dirname,
         "../../renderer-canvas/src",
       ),
+
+      "@dac/core-machine": path.resolve(__dirname, "../../core-machine/src"),
+      "@dac/adapter-serial": path.resolve(
+        __dirname,
+        "../../adapters/adapter-serial/src",
+      ),
     },
   },
 });

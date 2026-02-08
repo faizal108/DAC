@@ -1,3 +1,5 @@
+import "./StatusBar.css";
+
 export function StatusBar({ status }) {
   return (
     <div className="status-bar">

@@ -4,6 +4,7 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+
   resolve: {
     alias: {
       "@dac/core-geometry": path.resolve(__dirname, "../../core-geometry/src"),
@@ -23,10 +24,15 @@ export default defineConfig({
       ),
 
       "@dac/core-machine": path.resolve(__dirname, "../../core-machine/src"),
+
       "@dac/adapter-serial": path.resolve(
         __dirname,
         "../../adapters/adapter-serial/src",
       ),
+
+      "@dac/core-config": path.resolve(__dirname, "../../core-config/src"),
+
+      "@dac/core-auth": path.resolve(__dirname, "../../core-auth/src"),
     },
   },
 });

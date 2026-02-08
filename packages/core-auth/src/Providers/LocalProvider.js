@@ -7,9 +7,14 @@ export class LocalProvider {
       },
 
       capabilities: {
+        SAVE_PROJECT: true,
         EXPORT_DXF: false,
+        EXPORT_GCODE: false,
+
         ADVANCED_TRIM: true,
-        CLOUD_SYNC: false,
+        CIRCLE_TOOL: true,
+
+        CAPTURE: true,
       },
     });
   }

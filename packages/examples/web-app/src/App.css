@@ -1,32 +1,49 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-}
-
-.menu-bar {
-  background: #222;
-  color: white;
-  padding: 6px;
-}
-
-.tool-bar {
-  background: #eee;
-  padding: 6px;
-}
-
-.status-bar {
-  background: #ddd;
-  padding: 4px;
-  font-size: 12px;
-}
-
-.workspace {
-  display: block;
-  background: white;
-}
+/* Root handled already by base.css */
 
 .main {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+}
+
+/* Middle section: workspace + inspector */
+.content {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Workspace side */
+.workspace-container {
+  flex: 1;
+  position: relative;
+  background: var(--bg-app);
+  overflow: hidden;
+  padding: var(--space-sm);
+}
+
+/* Canvas itself */
+.workspace {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Right inspector panel */
+.inspector {
+  width: 280px;
+  flex-shrink: 0;
+
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+
+  display: flex;
+  flex-direction: column;
 }

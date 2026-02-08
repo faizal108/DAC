@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
+import "./theme/tokens.css";
 import "./App.css";
 
-import { MenuBar } from "./components/MenuBar";
-import { ToolBar } from "./components/ToolBar";
-import { StatusBar } from "./components/StatusBar";
-import { WorkspaceView } from "./components/WorkspaceView";
+import { MenuBar } from "./components/MenuBar/MenuBar";
+import { ToolBar } from "./components/ToolBar/ToolBar";
+import { StatusBar } from "./components/StatusBar/StatusBar";
+import { WorkspaceView } from "./components/Workspace/WorkspaceView";
 
 import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 
@@ -29,64 +30,66 @@ export function App() {
     snap: true,
   });
 
-  useEffect(async () => {
-    const config = new ConfigService();
-    await config.load();
+  useEffect(() => {
+    let disposed = false;
 
-    const auth = new AuthService(new LocalProvider());
+    async function init() {
+      const config = new ConfigService();
+      await config.load();
 
-    await auth.load();
+      const auth = new AuthService(new LocalProvider());
+      await auth.load();
 
-    window.DAC = { config, auth };
+      if (disposed) return;
 
-    const canvas = document.querySelector(".workspace");
+      const canvas = document.querySelector(".workspace");
 
-    const tf = new ViewTransform();
+      const tf = new ViewTransform();
+      tf.scale = 40;
+      tf.offsetX = 500;
+      tf.offsetY = 350;
 
-    tf.scale = 40;
-    tf.offsetX = 500;
-    tf.offsetY = 350;
+      const renderer = new CanvasRenderer(canvas, tf);
+      new Viewport(tf, canvas);
 
-    const renderer = new CanvasRenderer(canvas, tf);
+      const scene = new Scene();
+      const mgr = new CommandManager(scene);
 
-    new Viewport(tf, canvas);
+      const ws = new Workspace(canvas, scene, renderer, tf);
+      ws.commands = mgr;
+      ws.tools.set(new SelectTool(ws));
 
-    const scene = new Scene();
-    const mgr = new CommandManager(scene);
+      canvas.addEventListener("mousemove", (e) => {
+        const r = canvas.getBoundingClientRect();
+        const p = tf.screenToWorld(e.clientX - r.left, e.clientY - r.top);
 
-    const ws = new Workspace(canvas, scene, renderer, tf);
+        setStatus((s) => ({
+          ...s,
+          x: Math.round(p.x),
+          y: Math.round(p.y),
+          zoom: Math.round(tf.scale * 2.5),
+        }));
+      });
 
-    ws.commands = mgr;
+      function loop() {
+        renderer.drawAll(scene.getAll(), scene.selection);
 
-    ws.tools.set(new SelectTool(ws));
+        const tool = ws.tools.get();
+        if (tool?.drawOverlay) {
+          tool.drawOverlay(renderer.ctx);
+        }
 
-    // Mouse position tracking
-    canvas.addEventListener("mousemove", (e) => {
-      const r = canvas.getBoundingClientRect();
-
-      const p = tf.screenToWorld(e.clientX - r.left, e.clientY - r.top);
-
-      setStatus((s) => ({
-        ...s,
-        x: Math.round(p.x),
-        y: Math.round(p.y),
-        zoom: Math.round(tf.scale * 2.5),
-      }));
-    });
-
-    function loop() {
-      renderer.drawAll(scene.getAll(), scene.selection);
-
-      const tool = ws.tools.get();
-
-      if (tool?.drawOverlay) {
-        tool.drawOverlay(renderer.ctx);
+        requestAnimationFrame(loop);
       }
 
-      requestAnimationFrame(loop);
+      loop();
     }
 
-    loop();
+    init();
+
+    return () => {
+      disposed = true;
+    };
   }, []);
 
   return (
@@ -94,7 +97,13 @@ export function App() {
       <MenuBar />
       <ToolBar />
 
-      <WorkspaceView />
+      <div className="content">
+        <div className="workspace-container">
+          <WorkspaceView />
+        </div>
+
+        <div className="inspector">{/* Inspector content comes next */}</div>
+      </div>
 
       <StatusBar status={status} />
     </div>

@@ -1,30 +1,51 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import "./App.css";
+
+import { MenuBar } from "./components/MenuBar";
+import { ToolBar } from "./components/ToolBar";
+import { StatusBar } from "./components/StatusBar";
+import { WorkspaceView } from "./components/WorkspaceView";
 
 import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 
 import { Scene } from "@dac/core-scene";
 import { CommandManager } from "@dac/core-commands";
-import { MachineController } from "@dac/core-machine";
 
-import {
-  Workspace,
-  SelectTool,
-  LineTool,
-  CircleTool,
-  TrimTool,
-} from "@dac/core-workspace";
+import { Workspace, SelectTool, LineTool } from "@dac/core-workspace";
+
+import { ConfigService } from "@dac/core-config";
+import { AuthService } from "@dac/core-auth";
+import { LocalProvider } from "@dac/core-auth/Providers/LocalProvider";
 
 export function App() {
   const canvasRef = useRef(null);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  const [status, setStatus] = useState({
+    x: 0,
+    y: 0,
+    zoom: 100,
+    grid: "10mm",
+    snap: true,
+  });
+
+  useEffect(async () => {
+    const config = new ConfigService();
+    await config.load();
+
+    const auth = new AuthService(new LocalProvider());
+
+    await auth.load();
+
+    window.DAC = { config, auth };
+
+    const canvas = document.querySelector(".workspace");
 
     const tf = new ViewTransform();
 
     tf.scale = 40;
-    tf.offsetX = 400;
-    tf.offsetY = 300;
+    tf.offsetX = 500;
+    tf.offsetY = 350;
 
     const renderer = new CanvasRenderer(canvas, tf);
 
@@ -33,53 +54,28 @@ export function App() {
     const scene = new Scene();
     const mgr = new CommandManager(scene);
 
-    // Machine bridge
-    const machine = new MachineController(mgr);
-
     const ws = new Workspace(canvas, scene, renderer, tf);
 
     ws.commands = mgr;
 
     ws.tools.set(new SelectTool(ws));
 
-    // WebSocket to bridge
-    const wsConn = new WebSocket("ws://localhost:8080");
+    // Mouse position tracking
+    canvas.addEventListener("mousemove", (e) => {
+      const r = canvas.getBoundingClientRect();
 
-    wsConn.onmessage = (e) => {
-      const evt = JSON.parse(e.data);
-      console.log("Received event:", evt);
-      
-      machine.onEvent(evt);
-    };
+      const p = tf.screenToWorld(e.clientX - r.left, e.clientY - r.top);
 
-    wsConn.onopen = () => {
-      console.log("WS connected");
-    };
-
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "l") {
-        ws.tools.set(new LineTool(ws));
-        console.log("Line");
-      }
-
-      if (e.key === "c") {
-        ws.tools.set(new CircleTool(ws));
-        console.log("Circle");
-      }
-
-      if (e.key === "t") {
-        ws.tools.set(new TrimTool(ws));
-        console.log("Trim");
-      }
-
-      if (e.key === "s") {
-        ws.tools.set(new SelectTool(ws));
-        console.log("Select");
-      }
+      setStatus((s) => ({
+        ...s,
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        zoom: Math.round(tf.scale * 2.5),
+      }));
     });
 
     function loop() {
-      renderer.drawAll(scene.getAll());
+      renderer.drawAll(scene.getAll(), scene.selection);
 
       const tool = ws.tools.get();
 
@@ -94,15 +90,13 @@ export function App() {
   }, []);
 
   return (
-    <div style={{ height: "100vh" }}>
-      <canvas
-        ref={canvasRef}
-        width={800}
-        height={600}
-        style={{
-          border: "1px solid black",
-        }}
-      />
+    <div className="main">
+      <MenuBar />
+      <ToolBar />
+
+      <WorkspaceView />
+
+      <StatusBar status={status} />
     </div>
   );
 }

@@ -44,6 +44,8 @@ importers:
         specifier: ^8.16.0
         version: 8.19.0
 
+  packages/core-auth: {}
+
   packages/core-commands:
     dependencies:
       '@dac/core-geometry':
@@ -52,6 +54,8 @@ importers:
       '@dac/core-scene':
         specifier: workspace:*
         version: link:../core-scene
+
+  packages/core-config: {}
 
   packages/core-events: {}
 

@@ -31,3 +31,6 @@ export * from "./ops/measure.js";
 // Trim & Extend
 export * from "./ops/trim.js";
 export * from "./ops/extend.js";
+
+// Polyline
+export * from "./primitives/polyline.js";

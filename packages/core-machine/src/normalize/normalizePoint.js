@@ -33,7 +33,17 @@ export function normalizePoint(input) {
 
   // CSV string: "x,y"
   else if (typeof input === "string") {
-    const parts = input.split(",");
+    const trimmed = input.trim();
+
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return normalizePoint(JSON.parse(trimmed));
+      } catch {
+        // Fallback to CSV parsing below.
+      }
+    }
+
+    const parts = trimmed.split(",");
     if (parts.length >= 2) {
       x = Number(parts[0]);
       y = Number(parts[1]);

@@ -6,8 +6,9 @@
   background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--space-md);
-  min-height: 120px;
-  max-height: 120px;
+  min-height: 48px;
+  max-height: 48px;
+  overflow-x: auto;
 }
 
 .tool-btn {
@@ -31,4 +32,11 @@
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.tool-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 var(--space-xs);
 }

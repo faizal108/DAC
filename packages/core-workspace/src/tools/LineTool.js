@@ -1,7 +1,6 @@
 import { BaseTool } from "./BaseTool.js";
-import { AddEntityCommand } from "../../../core-commands/src/index.js";
-
-import { createLine } from "../../../core-geometry/src/index.js";
+import { AddEntityCommand } from "@dac/core-commands";
+import { createLine } from "@dac/core-geometry";
 
 export class LineTool extends BaseTool {
   constructor(ws) {
@@ -30,7 +29,6 @@ export class LineTool extends BaseTool {
     if (!cur) return;
 
     const a = this.ws.transform.worldToScreen(this.start.x, this.start.y);
-
     const b = this.ws.transform.worldToScreen(cur.x, cur.y);
 
     ctx.beginPath();

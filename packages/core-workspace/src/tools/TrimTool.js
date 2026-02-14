@@ -1,6 +1,5 @@
 import { BaseTool } from "./BaseTool.js";
-
-import { RemoveEntityCommand } from "../../../core-commands/src/index.js";
+import { RemoveEntityCommand } from "@dac/core-commands";
 
 export class TrimTool extends BaseTool {
   onMouseDown(p) {

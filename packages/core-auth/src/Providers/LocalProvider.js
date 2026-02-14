@@ -8,8 +8,11 @@ export class LocalProvider {
 
       capabilities: {
         SAVE_PROJECT: true,
-        EXPORT_DXF: false,
-        EXPORT_GCODE: false,
+        EXPORT_DXF: true,
+        EXPORT_GCODE: true,
+        EXPORT_IMAGE: true,
+        EXPORT_JSON: true,
+        EDIT_GEOMETRY: true,
 
         ADVANCED_TRIM: true,
         CIRCLE_TOOL: true,

@@ -11,3 +11,5 @@ export * from "./commands/MacroCommand.js";
 export * from "./scripting/ApiFacade.js";
 export * from "./scripting/ScriptContext.js";
 export * from "./scripting/PluginManager.js";
+
+export * from "./commands/CommitCaptureCommand.js";

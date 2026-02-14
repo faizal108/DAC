@@ -1,5 +1,5 @@
 import { ReplaceEntityCommand } from "@dac/core-commands";
-import { createLine, createPoint } from "@dac/core-geometry";
+import { createLine, createPointInternal } from "@dac/core-geometry";
 
 export function LineEditor({ entity, commands, canEdit }) {
   const { geometry } = entity;
@@ -9,8 +9,8 @@ export function LineEditor({ entity, commands, canEdit }) {
 
     const g = geometry;
     const next = createLine(
-      createPoint(patch.x1 ?? g.start.x, patch.y1 ?? g.start.y),
-      createPoint(patch.x2 ?? g.end.x, patch.y2 ?? g.end.y),
+      createPointInternal(patch.x1 ?? g.start.x, patch.y1 ?? g.start.y),
+      createPointInternal(patch.x2 ?? g.end.x, patch.y2 ?? g.end.y),
     );
 
     commands.execute(new ReplaceEntityCommand(entity.id, next));

@@ -20,6 +20,11 @@ export const MENU = [
         label: "Export GCode",
         feature: "EXPORT_GCODE",
       },
+      {
+        id: "file.export.image",
+        label: "Export Image",
+        feature: "EXPORT_IMAGE",
+      },
     ],
   },
 

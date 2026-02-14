@@ -1,5 +1,5 @@
 import { ReplaceEntityCommand } from "@dac/core-commands";
-import { createCircle, createPoint } from "@dac/core-geometry";
+import { createCircle, createPointInternal } from "@dac/core-geometry";
 
 export function CircleEditor({ entity, commands, canEdit }) {
   const { geometry } = entity;
@@ -8,7 +8,10 @@ export function CircleEditor({ entity, commands, canEdit }) {
     if (!canEdit) return;
 
     const next = createCircle(
-      createPoint(patch.cx ?? geometry.center.x, patch.cy ?? geometry.center.y),
+      createPointInternal(
+        patch.cx ?? geometry.center.x,
+        patch.cy ?? geometry.center.y,
+      ),
       patch.r ?? geometry.radius,
     );
 

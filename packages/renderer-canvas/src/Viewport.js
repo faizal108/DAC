@@ -29,6 +29,9 @@ export class Viewport {
 
     // Pan
     this.canvas.addEventListener("mousedown", (e) => {
+      // Keep left click free for drawing/select tools.
+      if (e.button === 0) return;
+
       this._dragging = true;
       this._last = {
         x: e.clientX,

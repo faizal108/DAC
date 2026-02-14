@@ -2,7 +2,7 @@ import "./MenuBar.css";
 import { MENU } from "../../config/MenuConfig";
 import { usePlatform } from "../../platform/PlatformContext";
 
-export function MenuBar() {
+export function MenuBar({ onAction }) {
   const { auth } = usePlatform();
 
   return (
@@ -19,6 +19,7 @@ export function MenuBar() {
                 <div
                   key={item.id}
                   className={`menu-item ${enabled ? "" : "disabled"}`}
+                  onClick={() => enabled && onAction?.(item.id)}
                 >
                   {item.label}
                 </div>

@@ -9,6 +9,8 @@ export function StatusBar({ status }) {
       Grid:{status.grid}
       {" | "}
       Snap:{status.snap ? "ON" : "OFF"}
+      {" | "}
+      Link:{status.connection}
     </div>
   );
 }

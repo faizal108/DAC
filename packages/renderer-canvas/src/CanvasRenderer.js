@@ -41,28 +41,68 @@ export class CanvasRenderer {
   }
 
   drawEntity(e) {
+    const ctx = this.ctx;
+    const tf = this.transform;
+    const g = e.geometry;
+
     switch (e.type) {
       case "POINT":
-        this.drawPoint(e.geometry);
+        this.drawPoint(g);
         break;
 
       case "LINE":
-        this.drawLine(e.geometry);
+        this.drawLine(g);
         break;
 
       case "CIRCLE":
-        this.drawCircle(e.geometry);
+        this.drawCircle(g);
         break;
+      case "POLYLINE": {
+        const pts = g.points;
+        if (pts.length < 2) break;
+
+        ctx.beginPath();
+        const p0 = tf.worldToScreen(pts[0].x, pts[0].y);
+        ctx.moveTo(p0.x, p0.y);
+
+        for (let i = 1; i < pts.length; i++) {
+          const p = tf.worldToScreen(pts[i].x, pts[i].y);
+          ctx.lineTo(p.x, p.y);
+        }
+
+        ctx.stroke();
+        break;
+      }
     }
   }
 
-  drawAll(entities) {
+  drawSelection(entities, selection) {
+    if (!selection) return;
+
+    const ids = new Set(selection.getAll());
+    if (!ids.size) return;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "#1d4ed8";
+    this.ctx.lineWidth = 2;
+
+    for (const e of entities) {
+      if (!ids.has(e.id)) continue;
+      this.drawEntity(e);
+    }
+
+    this.ctx.restore();
+  }
+
+  drawAll(entities, selection) {
     this.clear();
     this.drawGrid();
 
     for (const e of entities) {
       this.drawEntity(e);
     }
+
+    this.drawSelection(entities, selection);
   }
 
   drawGrid(spacingMm = 10) {

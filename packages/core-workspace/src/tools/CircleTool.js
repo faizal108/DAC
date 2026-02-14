@@ -1,8 +1,6 @@
 import { BaseTool } from "./BaseTool.js";
-
-import { AddEntityCommand } from "../../../core-commands/src/index.js";
-
-import { createCircle } from "../../../core-geometry/src/index.js";
+import { AddEntityCommand } from "@dac/core-commands";
+import { createCircle } from "@dac/core-geometry";
 
 export class CircleTool extends BaseTool {
   constructor(ws) {

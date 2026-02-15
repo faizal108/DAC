@@ -6,6 +6,8 @@ export class Viewport {
   constructor(transform, canvas) {
     this.transform = transform;
     this.canvas = canvas;
+    this.minScale = 2;
+    this.maxScale = 200;
 
     this._dragging = false;
     this._last = null;
@@ -20,9 +22,13 @@ export class Viewport {
       (e) => {
         e.preventDefault();
 
-        const scale = e.deltaY < 0 ? 1.1 : 0.9;
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
 
-        this.transform.scale *= scale;
+        // Exponential factor gives smoother zoom behavior than fixed jumps.
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        this.zoomAt(x, y, factor);
       },
       { passive: false },
     );
@@ -57,5 +63,17 @@ export class Viewport {
         y: e.clientY,
       };
     });
+  }
+
+  zoomAt(screenX, screenY, factor) {
+    const before = this.transform.screenToWorld(screenX, screenY);
+
+    const nextScale = Math.max(
+      this.minScale,
+      Math.min(this.maxScale, this.transform.scale * factor),
+    );
+    this.transform.scale = nextScale;
+    this.transform.offsetX = screenX - (before.x / 1000) * this.transform.scale;
+    this.transform.offsetY = screenY + (before.y / 1000) * this.transform.scale;
   }
 }

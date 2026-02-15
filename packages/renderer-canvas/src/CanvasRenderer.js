@@ -5,6 +5,9 @@ export class CanvasRenderer {
   constructor(canvas, transform) {
     this.ctx = canvas.getContext("2d");
     this.transform = transform;
+    this.showGrid = true;
+    this.showPoints = false;
+    this.showLinePointLabels = false;
   }
 
   clear() {
@@ -28,6 +31,15 @@ export class CanvasRenderer {
     this.ctx.moveTo(a.x, a.y);
     this.ctx.lineTo(b.x, b.y);
     this.ctx.stroke();
+
+    if (this.showPoints) {
+      this._drawMarker(a.x, a.y);
+      this._drawMarker(b.x, b.y);
+      if (this.showLinePointLabels) {
+        this._drawLabel("S", a.x + 5, a.y - 5);
+        this._drawLabel("E", b.x + 5, b.y - 5);
+      }
+    }
   }
 
   drawCircle(c) {
@@ -38,6 +50,13 @@ export class CanvasRenderer {
     this.ctx.beginPath();
     this.ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
     this.ctx.stroke();
+
+    if (this.showPoints) {
+      this._drawMarker(s.x, s.y);
+      if (this.showLinePointLabels) {
+        this._drawLabel("C", s.x + 5, s.y - 5);
+      }
+    }
   }
 
   drawEntity(e) {
@@ -48,6 +67,10 @@ export class CanvasRenderer {
     switch (e.type) {
       case "POINT":
         this.drawPoint(g);
+        if (this.showPoints) {
+          const p = tf.worldToScreen(g.x, g.y);
+          this._drawMarker(p.x, p.y);
+        }
         break;
 
       case "LINE":
@@ -71,6 +94,16 @@ export class CanvasRenderer {
         }
 
         ctx.stroke();
+
+        if (this.showPoints) {
+          for (let i = 0; i < pts.length; i++) {
+            const p = tf.worldToScreen(pts[i].x, pts[i].y);
+            this._drawMarker(p.x, p.y);
+            if (this.showLinePointLabels) {
+              this._drawLabel(`${i}`, p.x + 5, p.y - 5);
+            }
+          }
+        }
         break;
       }
     }
@@ -96,7 +129,9 @@ export class CanvasRenderer {
 
   drawAll(entities, selection) {
     this.clear();
-    this.drawGrid();
+    if (this.showGrid) {
+      this.drawGrid();
+    }
 
     for (const e of entities) {
       this.drawEntity(e);
@@ -113,6 +148,7 @@ export class CanvasRenderer {
     const h = ctx.canvas.height;
 
     const spacingPx = spacingMm * tf.scale;
+    if (!Number.isFinite(spacingPx) || spacingPx < 8) return;
 
     ctx.save();
     ctx.strokeStyle = "#ddd";
@@ -136,5 +172,20 @@ export class CanvasRenderer {
     }
 
     ctx.restore();
+  }
+
+  _drawMarker(x, y) {
+    this.ctx.save();
+    this.ctx.fillStyle = "#ef4444";
+    this.ctx.fillRect(x - 2, y - 2, 4, 4);
+    this.ctx.restore();
+  }
+
+  _drawLabel(text, x, y) {
+    this.ctx.save();
+    this.ctx.fillStyle = "#b91c1c";
+    this.ctx.font = "10px ui-monospace, monospace";
+    this.ctx.fillText(text, x, y);
+    this.ctx.restore();
   }
 }

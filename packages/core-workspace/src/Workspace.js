@@ -10,6 +10,7 @@ export class Workspace {
 
     this.tools = new ToolManager(this);
     this.snap = new SnapEngine(scene);
+    this.snapEnabled = true;
     this.lastMouse = null;
 
     this._bind();
@@ -43,7 +44,9 @@ export class Workspace {
     this.lastMouse = p;
 
     // Apply snap
-    p = this.snap.snap(p, this.transform);
+    if (this.snapEnabled) {
+      p = this.snap.snap(p, this.transform);
+    }
 
     this.tools.get()?.onMouseMove(p, e);
   }

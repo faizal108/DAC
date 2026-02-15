@@ -35,6 +35,13 @@ export class SerialAdapter {
 
       if (evt) {
         this.bus.emit(evt);
+      } else {
+        this.bus.emit({
+          type: "TEXT",
+          text: line.trim(),
+          t: Date.now(),
+          source: "serial",
+        });
       }
     });
   }
@@ -48,5 +55,11 @@ export class SerialAdapter {
 
   onPoint(fn) {
     return this.bus.subscribe(fn);
+  }
+
+  writeLine(line) {
+    if (!this._port) return false;
+    this._port.write(`${line}\n`);
+    return true;
   }
 }

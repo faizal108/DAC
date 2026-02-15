@@ -8,13 +8,14 @@ const STATE = {
 };
 
 export class MachineSession {
-  constructor({ previewLimit = 1000 } = {}) {
+  constructor({ previewLimit = 1000, inputUnit = "um" } = {}) {
     this.state = STATE.IDLE;
 
     this.points = []; // full capture
     this.preview = []; // rolling buffer
 
     this.previewLimit = previewLimit;
+    this.inputUnit = inputUnit;
 
     this._listeners = {
       point: new Set(),
@@ -54,7 +55,7 @@ export class MachineSession {
   ingest(rawInput) {
     if (this.state !== STATE.CAPTURING) return;
 
-    const pt = normalizePoint(rawInput);
+    const pt = normalizePoint(rawInput, { unit: this.inputUnit });
     if (!pt) return;
 
     this.points.push(pt);
@@ -66,6 +67,10 @@ export class MachineSession {
     }
 
     this._emit("point", pt);
+  }
+
+  setInputUnit(unit) {
+    this.inputUnit = unit || "um";
   }
 
   /* ---------- subscriptions ---------- */

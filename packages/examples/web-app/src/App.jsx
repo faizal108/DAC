@@ -178,8 +178,14 @@ export function App() {
       const socket = new WebSocket("ws://localhost:8080");
       wsRef.current = socket;
 
-      socket.onopen = () =>
+      socket.onopen = () => {
         setStatus((s) => ({ ...s, connection: "CONNECTED (WS)" }));
+        const unit = settingsRef.current?.inputUnit || "um";
+        const sent = sendWsCommand(socket, `unit ${unit}`);
+        if (sent && settingsRef.current?.debugIO) {
+          pushDebug(`TX unit ${unit}`);
+        }
+      };
       socket.onmessage = (e) => {
         let msg;
         try {
@@ -615,6 +621,11 @@ export function App() {
       if (settings.debugIO) pushDebug("TX status");
       sendWsCommand(wsRef.current, "status");
     }
+    if (actionId === "machine.inputUnit") {
+      updateSetting("inputUnit", payload);
+      const sent = sendWsCommand(wsRef.current, `unit ${payload}`);
+      if (settings.debugIO && sent) pushDebug(`TX unit ${payload}`);
+    }
     if (actionId === "machine.clearDebug") setDebugLogs([]);
 
     if (actionId === "file.save") exportJson();
@@ -626,7 +637,6 @@ export function App() {
 
     if (actionId === "system.theme") updateSetting("theme", payload);
     if (actionId === "system.measure") updateSetting("measure", payload);
-    if (actionId === "system.inputUnit") updateSetting("inputUnit", payload);
     if (actionId === "system.grid") updateSetting("grid", !settings.grid);
     if (actionId === "system.snap") updateSetting("snap", !settings.snap);
     if (actionId === "system.showPoints") {
@@ -707,6 +717,19 @@ export function App() {
               action: "machine.connect",
             },
             {
+              id: "input-unit",
+              type: "select",
+              label: "Input Unit",
+              action: "machine.inputUnit",
+              value: settings.inputUnit,
+              options: [
+                { value: "um", label: "Micrometer (um)" },
+                { value: "mm", label: "Millimeter (mm)" },
+                { value: "cm", label: "Centimeter (cm)" },
+                { value: "inch", label: "Inch (in)" },
+              ],
+            },
+            {
               id: "start",
               label: "Start",
               icon: "ST",
@@ -769,19 +792,6 @@ export function App() {
               options: [
                 { value: "mm", label: "Millimeter" },
                 { value: "inch", label: "Inch" },
-              ],
-            },
-            {
-              id: "input-unit",
-              type: "select",
-              label: "Input Unit",
-              action: "system.inputUnit",
-              value: settings.inputUnit,
-              options: [
-                { value: "um", label: "Micrometer (um)" },
-                { value: "mm", label: "Millimeter (mm)" },
-                { value: "cm", label: "Centimeter (cm)" },
-                { value: "inch", label: "Inch (in)" },
               ],
             },
             {

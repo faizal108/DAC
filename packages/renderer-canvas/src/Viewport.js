@@ -33,16 +33,22 @@ export class Viewport {
       { passive: false },
     );
 
+    this.canvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+    });
+
     // Pan
     this.canvas.addEventListener("mousedown", (e) => {
-      // Keep left click free for drawing/select tools.
-      if (e.button === 0) return;
+      const isPanTrigger =
+        e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey);
+      if (!isPanTrigger) return;
 
       this._dragging = true;
       this._last = {
         x: e.clientX,
         y: e.clientY,
       };
+      e.preventDefault();
     });
 
     window.addEventListener("mouseup", () => {

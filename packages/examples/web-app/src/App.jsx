@@ -151,6 +151,10 @@ export function App() {
     open: false,
     action: null,
   });
+  const [warningModal, setWarningModal] = useState({
+    open: false,
+    message: "",
+  });
 
   function pushDebug(line) {
     setDebugLogs((prev) => {
@@ -583,7 +587,21 @@ export function App() {
     setActiveTool(toolKey);
   }
 
+  function isMachineConnected() {
+    const socket = wsRef.current;
+    return !!socket && socket.readyState === 1;
+  }
+
   function startCapture() {
+    if (!isMachineConnected()) {
+      setWarningModal({
+        open: true,
+        message:
+          "Machine is disconnected. Please connect to controller before starting capture.",
+      });
+      return;
+    }
+
     if (settings.debugIO) pushDebug("TX record");
     sendWsCommand(wsRef.current, "record");
     machineSessionRef.current?.start();
@@ -600,6 +618,13 @@ export function App() {
     mgr.execute(new CommitCaptureCommand([...session.points]));
     session.points = [];
     session.preview = [];
+  }
+
+  function toggleCapture() {
+    const session = machineSessionRef.current;
+    if (!session) return;
+    if (session.state === "CAPTURING") stopCapture();
+    else startCapture();
   }
 
   function toggleConnection() {
@@ -727,6 +752,7 @@ export function App() {
     if (actionId === "tool.move") setTool("move");
 
     if (actionId === "machine.connect") toggleConnection();
+    if (actionId === "machine.captureToggle") toggleCapture();
     if (actionId === "machine.start") startCapture();
     if (actionId === "machine.stop") stopCapture();
     if (actionId === "machine.status") {
@@ -860,22 +886,13 @@ export function App() {
               ],
             },
             {
-              id: "start",
-              label: "Start",
-              icon: "ST",
-              action: "machine.start",
-              disabled: !auth.can("CAPTURE") || status.capture === "CAPTURING",
-              tone: "success",
+              id: "capture-toggle",
+              label: status.capture === "CAPTURING" ? "Stop Capture" : "Start Capture",
+              icon: status.capture === "CAPTURING" ? "SP" : "ST",
+              action: "machine.captureToggle",
+              disabled: !auth.can("CAPTURE"),
+              tone: status.capture === "CAPTURING" ? "danger" : "success",
               active: status.capture === "CAPTURING",
-            },
-            {
-              id: "stop",
-              label: "Stop",
-              icon: "SP",
-              action: "machine.stop",
-              disabled: !auth.can("CAPTURE") || status.capture !== "CAPTURING",
-              tone: "danger",
-              active: status.capture !== "CAPTURING",
             },
             {
               id: "status",
@@ -1168,6 +1185,22 @@ export function App() {
                 Don&apos;t Save
               </button>
               <button onClick={() => resolveConfirm("cancel")}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {warningModal.open && (
+        <div className="modal-backdrop">
+          <div className="confirm-modal">
+            <h3>Machine Warning</h3>
+            <p>{warningModal.message}</p>
+            <div className="confirm-actions">
+              <button
+                onClick={() => setWarningModal({ open: false, message: "" })}
+              >
+                OK
+              </button>
             </div>
           </div>
         </div>

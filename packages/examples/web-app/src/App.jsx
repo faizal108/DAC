@@ -108,6 +108,8 @@ export function App() {
   const resizeStateRef = useRef(null);
   const settingsRef = useRef(null);
   const sceneVersionRef = useRef(0);
+  const fileInputRef = useRef(null);
+  const savedSceneVersionRef = useRef(0);
 
   const [status, setStatus] = useState({
     x: 0,
@@ -145,6 +147,10 @@ export function App() {
     debugIO: config.get("ui.debugIO") ?? true,
   }));
   const [debugLogs, setDebugLogs] = useState([]);
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    action: null,
+  });
 
   function pushDebug(line) {
     setDebugLogs((prev) => {
@@ -355,6 +361,7 @@ export function App() {
       loop();
 
       setReady(true);
+      savedSceneVersionRef.current = scene.version;
 
       return () => {
         resizeObserver.disconnect();
@@ -531,6 +538,44 @@ export function App() {
     resetZoom();
   }
 
+  function doNewFile() {
+    const scene = sceneRef.current;
+    const mgr = commandMgrRef.current;
+    if (!scene || !mgr) return;
+
+    scene.clear();
+    scene.selection.clear();
+    scene.layers._layers.clear();
+    scene.layers.createLayer("default", {
+      name: "Default",
+      visible: true,
+      locked: false,
+      color: "#000000",
+    });
+    mgr.clear();
+    savedSceneVersionRef.current = scene.version;
+    resetZoom();
+  }
+
+  function requestSafeAction(action) {
+    if (!hasUnsavedChanges()) {
+      if (action === "new") doNewFile();
+      if (action === "open") doOpenFilePicker();
+      return;
+    }
+    setConfirmModal({ open: true, action });
+  }
+
+  function resolveConfirm(choice) {
+    const action = confirmModal.action;
+    setConfirmModal({ open: false, action: null });
+    if (!action || choice === "cancel") return;
+
+    if (choice === "save") exportJson();
+    if (action === "new") doNewFile();
+    if (action === "open") doOpenFilePicker();
+  }
+
   function setTool(toolKey) {
     const ws = workspaceRef.current;
     if (!ws || !TOOL_FACTORY[toolKey]) return;
@@ -578,6 +623,73 @@ export function App() {
     if (!scene) return;
     const json = JSON.stringify(Serializer.serialize(scene), null, 2);
     downloadFile("workspace.json", json, "application/json");
+    savedSceneVersionRef.current = scene.version;
+  }
+
+  function hasUnsavedChanges() {
+    const scene = sceneRef.current;
+    if (!scene) return false;
+    return scene.version !== savedSceneVersionRef.current;
+  }
+
+  function applyLoadedScene(data) {
+    const scene = sceneRef.current;
+    const mgr = commandMgrRef.current;
+    if (!scene || !mgr) return;
+
+    scene.clear();
+    scene.selection.clear();
+    scene.layers._layers.clear();
+    scene.layers.createLayer("default", {
+      name: "Default",
+      visible: true,
+      locked: false,
+      color: "#000000",
+    });
+
+    const layers = Array.isArray(data?.layers) ? data.layers : [];
+    for (const l of layers) {
+      if (!l?.id || l.id === "default") continue;
+      scene.layers.createLayer(l.id, l);
+    }
+
+    const entities = Array.isArray(data?.entities) ? data.entities : [];
+    for (const e of entities) {
+      if (!e?.geometry) continue;
+      const layerId = e.layerId && scene.layers.get(e.layerId) ? e.layerId : "default";
+      try {
+        scene.add(e.geometry, {
+          layerId,
+          visible: e.visible,
+          locked: e.locked,
+        });
+      } catch {
+        // ignore malformed entity
+      }
+    }
+
+    mgr.clear();
+    savedSceneVersionRef.current = scene.version;
+    fitDrawingInView();
+  }
+
+  function doOpenFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  async function onOpenFileSelected(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      applyLoadedScene(data);
+      pushDebug(`Loaded ${file.name}`);
+    } catch {
+      pushDebug("Open failed: invalid JSON");
+    }
   }
 
   function exportDxf() {
@@ -629,6 +741,8 @@ export function App() {
     if (actionId === "machine.clearDebug") setDebugLogs([]);
 
     if (actionId === "file.save") exportJson();
+    if (actionId === "file.new") requestSafeAction("new");
+    if (actionId === "file.open") requestSafeAction("open");
     if (actionId === "file.export.dxf") exportDxf();
     if (actionId === "file.export.gcode") exportGcode();
     if (actionId === "file.export.csv") exportCsv();
@@ -664,6 +778,18 @@ export function App() {
           id: "file-main",
           label: "Project",
           items: [
+            {
+              id: "new",
+              label: "New",
+              icon: "NW",
+              action: "file.new",
+            },
+            {
+              id: "open",
+              label: "Open JSON",
+              icon: "OP",
+              action: "file.open",
+            },
             {
               id: "save",
               label: "Save",
@@ -715,6 +841,10 @@ export function App() {
                 : "Connect",
               icon: "IO",
               action: "machine.connect",
+              tone: status.connection.startsWith("CONNECTED")
+                ? "success"
+                : "danger",
+              active: status.connection.startsWith("CONNECTED"),
             },
             {
               id: "input-unit",
@@ -734,14 +864,18 @@ export function App() {
               label: "Start",
               icon: "ST",
               action: "machine.start",
-              disabled: !auth.can("CAPTURE"),
+              disabled: !auth.can("CAPTURE") || status.capture === "CAPTURING",
+              tone: "success",
+              active: status.capture === "CAPTURING",
             },
             {
               id: "stop",
               label: "Stop",
               icon: "SP",
               action: "machine.stop",
-              disabled: !auth.can("CAPTURE"),
+              disabled: !auth.can("CAPTURE") || status.capture !== "CAPTURING",
+              tone: "danger",
+              active: status.capture !== "CAPTURING",
             },
             {
               id: "status",
@@ -911,13 +1045,21 @@ export function App() {
         ],
       },
     ];
-  }, [activeMenu, activeTool, auth, settings, status.connection]);
+  }, [activeMenu, activeTool, auth, settings, status.connection, status.capture]);
 
   const activeMenuLabel =
     TOP_MENUS.find((m) => m.id === activeMenu)?.label || "Draw";
 
   return (
     <div className="main">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="file-open-input"
+        onChange={onOpenFileSelected}
+      />
+
       <MenuBar
         menus={TOP_MENUS}
         activeMenu={activeMenu}
@@ -1014,6 +1156,22 @@ export function App() {
         theme={settings.theme}
         inputUnit={settings.inputUnit}
       />
+
+      {confirmModal.open && (
+        <div className="modal-backdrop">
+          <div className="confirm-modal">
+            <h3>Unsaved Changes</h3>
+            <p>Do you want to save current workspace before continuing?</p>
+            <div className="confirm-actions">
+              <button onClick={() => resolveConfirm("save")}>Save</button>
+              <button onClick={() => resolveConfirm("discard")}>
+                Don&apos;t Save
+              </button>
+              <button onClick={() => resolveConfirm("cancel")}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

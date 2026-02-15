@@ -113,6 +113,24 @@
   color: var(--accent);
 }
 
+.sub-btn.tone-success {
+  border-color: #16a34a;
+  color: #166534;
+  background: #dcfce7;
+}
+
+.sub-btn.tone-danger {
+  border-color: #dc2626;
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.sub-btn.tone-warning {
+  border-color: #d97706;
+  color: #92400e;
+  background: #fef3c7;
+}
+
 .sub-icon {
   font-size: 10px;
   line-height: 1;

@@ -106,7 +106,7 @@ export function SubMenuPanel({
               return (
                 <button
                   key={item.id}
-                  className={`sub-btn ${item.active ? "active" : ""}`}
+                  className={`sub-btn ${item.active ? "active" : ""} ${item.tone ? `tone-${item.tone}` : ""}`}
                   disabled={item.disabled}
                   onClick={() => onAction(item.action)}
                 >

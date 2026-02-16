@@ -533,13 +533,22 @@ export function App() {
   }
 
   function resetRoom() {
-    sceneRef.current?.clear();
+    // Reset camera/capture state without deleting existing drawing.
     machineSessionRef.current?.stop();
     if (machineSessionRef.current) {
       machineSessionRef.current.points = [];
       machineSessionRef.current.preview = [];
     }
     resetZoom();
+    fitDrawingInView();
+  }
+
+  function undo() {
+    commandMgrRef.current?.undo();
+  }
+
+  function redo() {
+    commandMgrRef.current?.redo();
   }
 
   function doNewFile() {
@@ -750,6 +759,8 @@ export function App() {
     if (actionId === "tool.circle") setTool("circle");
     if (actionId === "tool.trim") setTool("trim");
     if (actionId === "tool.move") setTool("move");
+    if (actionId === "tool.undo") undo();
+    if (actionId === "tool.redo") redo();
 
     if (actionId === "machine.connect") toggleConnection();
     if (actionId === "machine.captureToggle") toggleCapture();
@@ -1059,6 +1070,18 @@ export function App() {
             action: "tool.move",
             active: activeTool === "move",
           },
+          {
+            id: "undo",
+            label: "Undo",
+            icon: "UN",
+            action: "tool.undo",
+          },
+          {
+            id: "redo",
+            label: "Redo",
+            icon: "RE",
+            action: "tool.redo",
+          },
         ],
       },
     ];
@@ -1119,6 +1142,12 @@ export function App() {
             </div>
           )}
           <div className="workspace-zoom-controls">
+            <button className="zoom-btn" onClick={undo}>
+              Undo
+            </button>
+            <button className="zoom-btn" onClick={redo}>
+              Redo
+            </button>
             <button className="zoom-btn" onClick={() => zoomBy(1.2)}>
               +
             </button>

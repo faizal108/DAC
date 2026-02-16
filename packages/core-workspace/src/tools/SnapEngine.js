@@ -18,27 +18,50 @@ export class SnapEngine {
 
       // Snap to point
       if (g.type === "POINT") {
-        this._check(g, point, transform, (p) => {
-          best = p;
+        this._check(g, point, transform, ({ p, d }) => {
+          if (d < minDist) {
+            minDist = d;
+            best = p;
+          }
         });
       }
 
       // Snap to line endpoints
       if (g.type === "LINE") {
-        this._check(g.start, point, transform, (p) => {
-          best = p;
+        this._check(g.start, point, transform, ({ p, d }) => {
+          if (d < minDist) {
+            minDist = d;
+            best = p;
+          }
         });
 
-        this._check(g.end, point, transform, (p) => {
-          best = p;
+        this._check(g.end, point, transform, ({ p, d }) => {
+          if (d < minDist) {
+            minDist = d;
+            best = p;
+          }
         });
       }
 
       // Snap to circle center
       if (g.type === "CIRCLE") {
-        this._check(g.center, point, transform, (p) => {
-          best = p;
+        this._check(g.center, point, transform, ({ p, d }) => {
+          if (d < minDist) {
+            minDist = d;
+            best = p;
+          }
         });
+      }
+
+      if (g.type === "POLYLINE" && Array.isArray(g.points)) {
+        for (const v of g.points) {
+          this._check(v, point, transform, ({ p, d }) => {
+            if (d < minDist) {
+              minDist = d;
+              best = p;
+            }
+          });
+        }
       }
     }
 
@@ -57,8 +80,11 @@ export class SnapEngine {
 
     if (d < this.tolerance) {
       set({
-        x: target.x,
-        y: target.y,
+        p: {
+          x: target.x,
+          y: target.y,
+        },
+        d,
       });
     }
   }

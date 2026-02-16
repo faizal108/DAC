@@ -126,8 +126,9 @@ body.is-resizing {
 }
 
 .zoom-btn {
-  width: 44px;
+  min-width: 44px;
   height: 30px;
+  padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-panel);

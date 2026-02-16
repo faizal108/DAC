@@ -33,8 +33,10 @@ export class Workspace {
   }
 
   _onDown(e) {
-    const p = this._worldPos(e);
-    console.log("CLICK world:", p);
+    let p = this._worldPos(e);
+    if (this.snapEnabled) {
+      p = this.snap.snap(p, this.transform);
+    }
     this.tools.get()?.onMouseDown(p, e);
   }
 
@@ -52,7 +54,10 @@ export class Workspace {
   }
 
   _onUp(e) {
-    const p = this._worldPos(e);
+    let p = this._worldPos(e);
+    if (this.snapEnabled) {
+      p = this.snap.snap(p, this.transform);
+    }
 
     this.tools.get()?.onMouseUp(p, e);
   }

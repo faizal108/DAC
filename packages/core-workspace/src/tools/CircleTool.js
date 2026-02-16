@@ -7,29 +7,40 @@ export class CircleTool extends BaseTool {
     super(ws);
 
     this.center = null;
+    this.current = null;
   }
 
   onMouseDown(p) {
     if (!this.center) {
       this.center = p;
+      this.current = p;
     } else {
-      const dx = p.x - this.center.x;
-      const dy = p.y - this.center.y;
+      const ref = this.current || p;
+      const dx = ref.x - this.center.x;
+      const dy = ref.y - this.center.y;
 
       const r = Math.round(Math.hypot(dx, dy));
 
-      const circle = createCircle(this.center, r);
-
-      this.ws.commands.execute(new AddEntityCommand(circle));
+      try {
+        const circle = createCircle(this.center, r);
+        this.ws.commands.execute(new AddEntityCommand(circle));
+      } catch {
+        // ignore invalid tiny radius
+      }
 
       this.center = null;
+      this.current = null;
     }
+  }
+
+  onMouseMove(p) {
+    this.current = p;
   }
 
   drawOverlay(ctx) {
     if (!this.center) return;
 
-    const cur = this.ws.lastMouse;
+    const cur = this.current || this.ws.lastMouse;
 
     if (!cur) return;
 
@@ -45,9 +56,34 @@ export class CircleTool extends BaseTool {
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
     ctx.stroke();
+
+    const radiusMm = Math.hypot(dx, dy) / 1000;
+    ctx.save();
+    ctx.fillStyle = "#1f2937";
+    ctx.font = "12px ui-monospace, monospace";
+    ctx.fillText(`R ${radiusMm.toFixed(2)} mm`, c.x + r + 8, c.y);
+    ctx.restore();
+  }
+
+  onKeyDown(e) {
+    if (!this.center || e.key !== "Enter") return;
+    const raw = window.prompt("Circle radius (mm):");
+    if (raw == null) return;
+    const rMm = Number(raw);
+    if (!Number.isFinite(rMm) || rMm <= 0) return;
+    const rUm = Math.round(rMm * 1000);
+    try {
+      const circle = createCircle(this.center, rUm);
+      this.ws.commands.execute(new AddEntityCommand(circle));
+    } catch {
+      // ignore invalid radius
+    }
+    this.center = null;
+    this.current = null;
   }
 
   onCancel() {
     this.center = null;
+    this.current = null;
   }
 }

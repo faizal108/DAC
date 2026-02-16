@@ -125,6 +125,23 @@ body.is-resizing {
   z-index: 5;
 }
 
+.workspace-hint {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  z-index: 4;
+}
+
 .zoom-btn {
   min-width: 44px;
   height: 30px;
@@ -144,7 +161,7 @@ body.is-resizing {
 .io-debug {
   position: absolute;
   left: 16px;
-  bottom: 16px;
+  bottom: 42px;
   width: min(520px, 48vw);
   max-height: 180px;
   border: 1px solid var(--border);

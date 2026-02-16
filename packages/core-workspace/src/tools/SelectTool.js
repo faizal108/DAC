@@ -9,4 +9,8 @@ export class SelectTool extends BaseTool {
 
     this.ws.scene.selection.selectAt(p, tol);
   }
+
+  getHint() {
+    return "Select: click object";
+  }
 }

@@ -99,4 +99,9 @@ export class LineTool extends BaseTool {
     this.current = null;
     this.shiftLock = false;
   }
+
+  getHint() {
+    if (!this.start) return "Line: pick first point";
+    return "Line: pick next point (Shift=orthogonal, Enter=typed length, Esc=finish)";
+  }
 }

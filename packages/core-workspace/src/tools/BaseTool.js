@@ -12,4 +12,7 @@ export class BaseTool {
   onKeyDown() {}
   onCancel() {}
   drawOverlay() {}
+  getHint() {
+    return "";
+  }
 }

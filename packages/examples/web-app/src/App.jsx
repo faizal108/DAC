@@ -22,6 +22,7 @@ import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 import { Scene, Serializer } from "@dac/core-scene";
 import { CommandManager, CommitCaptureCommand } from "@dac/core-commands";
 import {
+  CopyTool,
   CircleTool,
   LineTool,
   MoveTool,
@@ -37,6 +38,7 @@ const TOOL_FACTORY = {
   circle: (ws) => new CircleTool(ws),
   trim: (ws) => new TrimTool(ws),
   move: (ws) => new MoveTool(ws),
+  copy: (ws) => new CopyTool(ws),
 };
 
 function formatCoord(um, unit) {
@@ -155,6 +157,7 @@ export function App() {
     open: false,
     message: "",
   });
+  const [toolHint, setToolHint] = useState("Select: click object");
 
   function pushDebug(line) {
     setDebugLogs((prev) => {
@@ -359,6 +362,8 @@ export function App() {
           drawPreviewPolyline(renderer.ctx, session.preview, tf);
         }
         const tool = ws.tools.get();
+        const hint = tool?.getHint?.() || "";
+        setToolHint((prev) => (prev === hint ? prev : hint));
         if (tool?.drawOverlay) tool.drawOverlay(renderer.ctx);
         requestAnimationFrame(loop);
       }
@@ -596,6 +601,15 @@ export function App() {
     setActiveTool(toolKey);
   }
 
+  function setMenu(menuKey) {
+    setActiveMenu(menuKey);
+    if (menuKey === "draw") return;
+    const ws = workspaceRef.current;
+    if (!ws) return;
+    ws.tools.set(new SelectTool(ws));
+    setActiveTool("select");
+  }
+
   function isMachineConnected() {
     const socket = wsRef.current;
     return !!socket && socket.readyState === 1;
@@ -759,6 +773,7 @@ export function App() {
     if (actionId === "tool.circle") setTool("circle");
     if (actionId === "tool.trim") setTool("trim");
     if (actionId === "tool.move") setTool("move");
+    if (actionId === "tool.copy") setTool("copy");
     if (actionId === "tool.undo") undo();
     if (actionId === "tool.redo") redo();
 
@@ -1030,16 +1045,9 @@ export function App() {
 
     return [
       {
-        id: "draw-main",
-        label: "Draw Tools",
+        id: "draw-create",
+        label: "Create",
         items: [
-          {
-            id: "select",
-            label: "Select",
-            icon: "SE",
-            action: "tool.select",
-            active: activeTool === "select",
-          },
           {
             id: "line",
             label: "Line",
@@ -1055,13 +1063,18 @@ export function App() {
             active: activeTool === "circle",
             disabled: !auth.can("CIRCLE_TOOL"),
           },
+        ],
+      },
+      {
+        id: "draw-modify",
+        label: "Modify",
+        items: [
           {
-            id: "trim",
-            label: "Trim",
-            icon: "TR",
-            action: "tool.trim",
-            active: activeTool === "trim",
-            disabled: !auth.can("ADVANCED_TRIM"),
+            id: "select",
+            label: "Select",
+            icon: "SE",
+            action: "tool.select",
+            active: activeTool === "select",
           },
           {
             id: "move",
@@ -1069,6 +1082,21 @@ export function App() {
             icon: "MV",
             action: "tool.move",
             active: activeTool === "move",
+          },
+          {
+            id: "copy",
+            label: "Copy",
+            icon: "CP",
+            action: "tool.copy",
+            active: activeTool === "copy",
+          },
+          {
+            id: "trim",
+            label: "Trim",
+            icon: "TR",
+            action: "tool.trim",
+            active: activeTool === "trim",
+            disabled: !auth.can("ADVANCED_TRIM"),
           },
           {
             id: "undo",
@@ -1103,7 +1131,7 @@ export function App() {
       <MenuBar
         menus={TOP_MENUS}
         activeMenu={activeMenu}
-        onSelectMenu={setActiveMenu}
+        onSelectMenu={setMenu}
       />
 
       <div className="content" ref={contentRef}>
@@ -1129,6 +1157,7 @@ export function App() {
 
         <div className="workspace-container">
           <WorkspaceView canvasRef={canvasRef} />
+          <div className="workspace-hint">{toolHint}</div>
           {settings.debugIO && (
             <div className="io-debug">
               <div className="io-debug-title">I/O Debug</div>

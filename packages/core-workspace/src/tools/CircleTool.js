@@ -86,4 +86,9 @@ export class CircleTool extends BaseTool {
     this.center = null;
     this.current = null;
   }
+
+  getHint() {
+    if (!this.center) return "Circle: pick center";
+    return "Circle: pick radius point (Enter=typed radius)";
+  }
 }

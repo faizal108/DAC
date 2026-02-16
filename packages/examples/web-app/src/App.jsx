@@ -41,21 +41,47 @@ const TOOL_FACTORY = {
   copy: (ws) => new CopyTool(ws),
 };
 
+function defaultWifiProfiles() {
+  return [
+    {
+      id: "default",
+      name: "Default Device",
+      protocol: "ws",
+      host: "192.168.4.1",
+      port: "81",
+      path: "/",
+    },
+  ];
+}
+
 function formatCoord(um, unit) {
   if (unit === "inch") return `${(um / 25400).toFixed(4)} in`;
   return `${(um / 1000).toFixed(2)} mm`;
 }
 
-function sendWsCommand(socket, command) {
+function sendMachineCommand(socket, command, source = "serial") {
   if (!socket || socket.readyState !== 1) return false;
-  socket.send(
-    JSON.stringify({
-      type: "COMMAND",
-      command,
-      t: Date.now(),
-    }),
-  );
+  if (source === "serial") {
+    socket.send(
+      JSON.stringify({
+        type: "COMMAND",
+        command,
+        t: Date.now(),
+      }),
+    );
+  } else {
+    socket.send(command);
+  }
   return true;
+}
+
+function buildWifiUrl(settings) {
+  const proto = settings.wifiProtocol || "ws";
+  const host = (settings.wifiHost || "").trim() || "192.168.4.1";
+  const port = String(settings.wifiPort || "81").trim() || "81";
+  let path = String(settings.wifiPath || "/").trim() || "/";
+  if (!path.startsWith("/")) path = `/${path}`;
+  return `${proto}://${host}:${port}${path}`;
 }
 
 function computeSceneBounds(entities) {
@@ -140,6 +166,12 @@ export function App() {
     theme: config.get("ui.theme") || "light",
     measure: config.get("ui.measure") || "mm",
     inputUnit: config.get("ui.inputUnit") || "um",
+    machineSource: config.get("ui.machineSource") || "serial",
+    wifiProtocol: config.get("ui.wifiProtocol") || "ws",
+    wifiHost: config.get("ui.wifiHost") || "192.168.4.1",
+    wifiPort: config.get("ui.wifiPort") || "81",
+    wifiPath: config.get("ui.wifiPath") || "/",
+    wifiProfileName: config.get("ui.wifiProfileName") || "My Device",
     grid: config.get("ui.grid") ?? true,
     snap: config.get("ui.snap") ?? true,
     showPoints: config.get("ui.showPoints") ?? false,
@@ -148,6 +180,13 @@ export function App() {
     autoCenter: config.get("ui.autoCenter") ?? false,
     debugIO: config.get("ui.debugIO") ?? true,
   }));
+  const [wifiProfiles, setWifiProfiles] = useState(() => {
+    const profiles = config.get("ui.wifiProfiles");
+    return Array.isArray(profiles) && profiles.length ? profiles : defaultWifiProfiles();
+  });
+  const [activeWifiProfileId, setActiveWifiProfileId] = useState(
+    config.get("ui.activeWifiProfileId") || "default",
+  );
   const [debugLogs, setDebugLogs] = useState([]);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
@@ -188,13 +227,22 @@ export function App() {
     function connectWs() {
       if (disposed || !keepWsAliveRef.current) return;
 
-      const socket = new WebSocket("ws://localhost:8080");
+      const source = settingsRef.current?.machineSource || "serial";
+      const url =
+        source === "wifi"
+          ? buildWifiUrl(settingsRef.current || {})
+          : "ws://localhost:8080";
+      const socket = new WebSocket(url);
       wsRef.current = socket;
 
       socket.onopen = () => {
-        setStatus((s) => ({ ...s, connection: "CONNECTED (WS)" }));
+        setStatus((s) => ({
+          ...s,
+          connection:
+            source === "wifi" ? `CONNECTED (WIFI:${url})` : "CONNECTED (SERIAL)",
+        }));
         const unit = settingsRef.current?.inputUnit || "um";
-        const sent = sendWsCommand(socket, `unit ${unit}`);
+        const sent = sendMachineCommand(socket, `unit ${unit}`, source);
         if (sent && settingsRef.current?.debugIO) {
           pushDebug(`TX unit ${unit}`);
         }
@@ -219,7 +267,10 @@ export function App() {
         if (msg.type === "STATUS") {
           setStatus((s) => ({
             ...s,
-            connection: `CONNECTED (${msg.serialPort || "WS"})`,
+            connection:
+              source === "wifi"
+                ? `CONNECTED (WIFI:${url})`
+                : `CONNECTED (${msg.serialPort || "SERIAL"})`,
           }));
           return;
         }
@@ -255,7 +306,11 @@ export function App() {
       };
       socket.onclose = () => {
         if (!keepWsAliveRef.current || disposed) return;
-        setStatus((s) => ({ ...s, connection: "RECONNECTING (WS)" }));
+        setStatus((s) => ({
+          ...s,
+          connection:
+            source === "wifi" ? "RECONNECTING (WIFI)" : "RECONNECTING (SERIAL)",
+        }));
         reconnectTimerRef.current = window.setTimeout(connectWs, 1500);
       };
       socket.onerror = () => socket.close();
@@ -448,8 +503,12 @@ export function App() {
   }, [config, inspectorWidth, submenuWidth]);
 
   function updateSetting(key, value) {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    config.set(`ui.${key}`, value);
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      settingsRef.current = next;
+      config.set(`ui.${key}`, value);
+      return next;
+    });
   }
 
   function toggleLeftMenu() {
@@ -626,7 +685,7 @@ export function App() {
     }
 
     if (settings.debugIO) pushDebug("TX record");
-    sendWsCommand(wsRef.current, "record");
+    sendMachineCommand(wsRef.current, "record", settings.machineSource);
     machineSessionRef.current?.start();
   }
 
@@ -636,7 +695,7 @@ export function App() {
     if (!session || !mgr) return;
     session.stop();
     if (settings.debugIO) pushDebug("TX stop");
-    sendWsCommand(wsRef.current, "stop");
+    sendMachineCommand(wsRef.current, "stop", settings.machineSource);
     if (session.points.length < 2) return;
     mgr.execute(new CommitCaptureCommand([...session.points]));
     session.points = [];
@@ -664,6 +723,118 @@ export function App() {
     setStatus((s) => ({ ...s, connection: "RECONNECTING (WS)" }));
     clearTimeout(reconnectTimerRef.current);
     connectWsRef.current();
+  }
+
+  function reconnectMachineTransport() {
+    const socket = wsRef.current;
+    keepWsAliveRef.current = false;
+    clearTimeout(reconnectTimerRef.current);
+    if (socket && socket.readyState <= 1) {
+      socket.close();
+    }
+
+    keepWsAliveRef.current = true;
+    setStatus((s) => ({ ...s, connection: "RECONNECTING..." }));
+    connectWsRef.current();
+  }
+
+  function saveWifiProfiles(nextProfiles, nextActiveId = activeWifiProfileId) {
+    setWifiProfiles(nextProfiles);
+    setActiveWifiProfileId(nextActiveId);
+    config.set("ui.wifiProfiles", nextProfiles);
+    config.set("ui.activeWifiProfileId", nextActiveId);
+  }
+
+  function applyWifiProfile(profileId) {
+    const profile = wifiProfiles.find((p) => p.id === profileId);
+    if (!profile) return;
+    setActiveWifiProfileId(profile.id);
+    config.set("ui.activeWifiProfileId", profile.id);
+    updateSetting("wifiProfileName", profile.name || "My Device");
+    updateSetting("wifiProtocol", profile.protocol || "ws");
+    updateSetting("wifiHost", profile.host || "192.168.4.1");
+    updateSetting("wifiPort", profile.port || "81");
+    updateSetting("wifiPath", profile.path || "/");
+  }
+
+  function saveCurrentWifiProfile() {
+    const name = String(settings.wifiProfileName || "").trim();
+    if (!name) {
+      setWarningModal({ open: true, message: "Please enter a profile name first." });
+      return;
+    }
+
+    const existing = wifiProfiles.find((p) => p.id === activeWifiProfileId);
+    const payload = {
+      id: existing?.id || `p_${Date.now()}`,
+      name,
+      protocol: settings.wifiProtocol,
+      host: settings.wifiHost,
+      port: settings.wifiPort,
+      path: settings.wifiPath,
+    };
+
+    const nextProfiles = existing
+      ? wifiProfiles.map((p) => (p.id === existing.id ? payload : p))
+      : [...wifiProfiles, payload];
+    saveWifiProfiles(nextProfiles, payload.id);
+    pushDebug(`Saved WiFi profile: ${payload.name}`);
+  }
+
+  function deleteCurrentWifiProfile() {
+    if (activeWifiProfileId === "default") {
+      setWarningModal({
+        open: true,
+        message: "Default profile cannot be deleted.",
+      });
+      return;
+    }
+
+    const nextProfiles = wifiProfiles.filter((p) => p.id !== activeWifiProfileId);
+    const fallback = nextProfiles[0] || defaultWifiProfiles()[0];
+    const finalProfiles = nextProfiles.length ? nextProfiles : [fallback];
+    saveWifiProfiles(finalProfiles, fallback.id);
+    applyWifiProfile(fallback.id);
+    pushDebug("Deleted WiFi profile");
+  }
+
+  function testWifiConnection() {
+    const url = buildWifiUrl(settings);
+    let done = false;
+    let testSocket = null;
+
+    try {
+      testSocket = new WebSocket(url);
+    } catch {
+      setWarningModal({ open: true, message: `Invalid WiFi URL: ${url}` });
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (done) return;
+      done = true;
+      try {
+        testSocket?.close();
+      } catch {
+        // ignore
+      }
+      setWarningModal({ open: true, message: `WiFi test failed: timeout (${url})` });
+    }, 3000);
+
+    testSocket.onopen = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      testSocket.close();
+      setWarningModal({ open: true, message: `WiFi test success: ${url}` });
+    };
+
+    testSocket.onerror = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      setWarningModal({ open: true, message: `WiFi test failed: cannot connect (${url})` });
+    };
   }
 
   function exportJson() {
@@ -783,13 +954,32 @@ export function App() {
     if (actionId === "machine.stop") stopCapture();
     if (actionId === "machine.status") {
       if (settings.debugIO) pushDebug("TX status");
-      sendWsCommand(wsRef.current, "status");
+      sendMachineCommand(wsRef.current, "status", settings.machineSource);
     }
     if (actionId === "machine.inputUnit") {
       updateSetting("inputUnit", payload);
-      const sent = sendWsCommand(wsRef.current, `unit ${payload}`);
+      const sent = sendMachineCommand(
+        wsRef.current,
+        `unit ${payload}`,
+        settings.machineSource,
+      );
       if (settings.debugIO && sent) pushDebug(`TX unit ${payload}`);
     }
+    if (actionId === "machine.source") {
+      updateSetting("machineSource", payload);
+      reconnectMachineTransport();
+    }
+    if (actionId === "machine.profile") {
+      applyWifiProfile(payload);
+    }
+    if (actionId === "machine.profileName") updateSetting("wifiProfileName", payload);
+    if (actionId === "machine.profileSave") saveCurrentWifiProfile();
+    if (actionId === "machine.profileDelete") deleteCurrentWifiProfile();
+    if (actionId === "machine.testConnection") testWifiConnection();
+    if (actionId === "machine.wifiProtocol") updateSetting("wifiProtocol", payload);
+    if (actionId === "machine.wifiHost") updateSetting("wifiHost", payload);
+    if (actionId === "machine.wifiPort") updateSetting("wifiPort", payload);
+    if (actionId === "machine.wifiPath") updateSetting("wifiPath", payload);
     if (actionId === "machine.clearDebug") setDebugLogs([]);
 
     if (actionId === "file.save") exportJson();
@@ -881,58 +1071,150 @@ export function App() {
     }
 
     if (activeMenu === "machine") {
+      const machineItems = [
+        {
+          id: "source",
+          type: "select",
+          label: "Input Source",
+          action: "machine.source",
+          value: settings.machineSource,
+          options: [
+            { value: "serial", label: "Serial Bridge" },
+            { value: "wifi", label: "WiFi Socket" },
+          ],
+        },
+        {
+          id: "conn",
+          label: status.connection.startsWith("CONNECTED")
+            ? "Disconnect"
+            : "Connect",
+          icon: "IO",
+          action: "machine.connect",
+          tone: status.connection.startsWith("CONNECTED")
+            ? "success"
+            : "danger",
+          active: status.connection.startsWith("CONNECTED"),
+        },
+      ];
+
+      if (settings.machineSource === "wifi") {
+        machineItems.push(
+          {
+            id: "wifi-profile",
+            type: "select",
+            label: "WiFi Profile",
+            action: "machine.profile",
+            value: activeWifiProfileId,
+            options: wifiProfiles.map((p) => ({ value: p.id, label: p.name })),
+          },
+          {
+            id: "wifi-profile-name",
+            type: "input",
+            label: "Profile Name",
+            action: "machine.profileName",
+            value: settings.wifiProfileName,
+            placeholder: "My Device",
+          },
+          {
+            id: "wifi-profile-save",
+            label: "Save Profile",
+            icon: "SV",
+            action: "machine.profileSave",
+          },
+          {
+            id: "wifi-profile-delete",
+            label: "Delete Profile",
+            icon: "DL",
+            action: "machine.profileDelete",
+            tone: "warning",
+          },
+          {
+            id: "wifi-proto",
+            type: "select",
+            label: "Protocol",
+            action: "machine.wifiProtocol",
+            value: settings.wifiProtocol,
+            options: [
+              { value: "ws", label: "ws" },
+              { value: "wss", label: "wss" },
+            ],
+          },
+          {
+            id: "wifi-host",
+            type: "input",
+            label: "WiFi Host/IP",
+            action: "machine.wifiHost",
+            value: settings.wifiHost,
+            placeholder: "192.168.4.1",
+          },
+          {
+            id: "wifi-port",
+            type: "input",
+            label: "WiFi Port",
+            action: "machine.wifiPort",
+            value: settings.wifiPort,
+            inputType: "number",
+            placeholder: "81",
+          },
+          {
+            id: "wifi-path",
+            type: "input",
+            label: "WiFi Path",
+            action: "machine.wifiPath",
+            value: settings.wifiPath,
+            placeholder: "/",
+          },
+          {
+            id: "wifi-test",
+            label: "Test Connection",
+            icon: "TS",
+            action: "machine.testConnection",
+          },
+        );
+      }
+
+      machineItems.push(
+        {
+          id: "input-unit",
+          type: "select",
+          label: "Input Unit",
+          action: "machine.inputUnit",
+          value: settings.inputUnit,
+          options: [
+            { value: "um", label: "Micrometer (um)" },
+            { value: "mm", label: "Millimeter (mm)" },
+            { value: "cm", label: "Centimeter (cm)" },
+            { value: "inch", label: "Inch (in)" },
+          ],
+        },
+        {
+          id: "capture-toggle",
+          label: status.capture === "CAPTURING" ? "Stop Capture" : "Start Capture",
+          icon: status.capture === "CAPTURING" ? "SP" : "ST",
+          action: "machine.captureToggle",
+          disabled: !auth.can("CAPTURE"),
+          tone: status.capture === "CAPTURING" ? "danger" : "success",
+          active: status.capture === "CAPTURING",
+        },
+        {
+          id: "status",
+          label: "Controller Status",
+          icon: "QS",
+          action: "machine.status",
+        },
+        {
+          id: "clear-debug",
+          label: "Clear Debug",
+          icon: "CL",
+          action: "machine.clearDebug",
+        },
+      );
+
       return [
         {
           id: "machine-ops",
           label: "Capture",
-          items: [
-            {
-              id: "conn",
-              label: status.connection.startsWith("CONNECTED")
-                ? "Disconnect"
-                : "Connect",
-              icon: "IO",
-              action: "machine.connect",
-              tone: status.connection.startsWith("CONNECTED")
-                ? "success"
-                : "danger",
-              active: status.connection.startsWith("CONNECTED"),
-            },
-            {
-              id: "input-unit",
-              type: "select",
-              label: "Input Unit",
-              action: "machine.inputUnit",
-              value: settings.inputUnit,
-              options: [
-                { value: "um", label: "Micrometer (um)" },
-                { value: "mm", label: "Millimeter (mm)" },
-                { value: "cm", label: "Centimeter (cm)" },
-                { value: "inch", label: "Inch (in)" },
-              ],
-            },
-            {
-              id: "capture-toggle",
-              label: status.capture === "CAPTURING" ? "Stop Capture" : "Start Capture",
-              icon: status.capture === "CAPTURING" ? "SP" : "ST",
-              action: "machine.captureToggle",
-              disabled: !auth.can("CAPTURE"),
-              tone: status.capture === "CAPTURING" ? "danger" : "success",
-              active: status.capture === "CAPTURING",
-            },
-            {
-              id: "status",
-              label: "Controller Status",
-              icon: "QS",
-              action: "machine.status",
-            },
-            {
-              id: "clear-debug",
-              label: "Clear Debug",
-              icon: "CL",
-              action: "machine.clearDebug",
-            },
-          ],
+          items: machineItems,
         },
       ];
     }
@@ -1113,7 +1395,16 @@ export function App() {
         ],
       },
     ];
-  }, [activeMenu, activeTool, auth, settings, status.connection, status.capture]);
+  }, [
+    activeMenu,
+    activeTool,
+    auth,
+    settings,
+    status.connection,
+    status.capture,
+    wifiProfiles,
+    activeWifiProfileId,
+  ]);
 
   const activeMenuLabel =
     TOP_MENUS.find((m) => m.id === activeMenu)?.label || "Draw";

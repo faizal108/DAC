@@ -103,6 +103,21 @@ export function SubMenuPanel({
                 );
               }
 
+              if (item.type === "input") {
+                return (
+                  <label key={item.id} className="sub-select-wrap">
+                    <span className="sub-select-label">{item.label}</span>
+                    <input
+                      className="sub-input"
+                      type={item.inputType || "text"}
+                      value={item.value}
+                      placeholder={item.placeholder || ""}
+                      onChange={(e) => onAction(item.action, e.target.value)}
+                    />
+                  </label>
+                );
+              }
+
               return (
                 <button
                   key={item.id}

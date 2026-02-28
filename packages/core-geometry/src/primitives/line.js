@@ -9,18 +9,10 @@ export function createLine(start, end) {
     throw new Error("Zero-length line not allowed");
   }
 
-  // Canonical ordering
-  let s = start;
-  let e = end;
-
-  if (s.x > e.x || (s.x === e.x && s.y > e.y)) {
-    s = end;
-    e = start;
-  }
-
   return Object.freeze({
     type: "LINE",
-    start: s,
-    end: e,
+    // Preserve caller direction; capture/export pipelines depend on sequence.
+    start,
+    end,
   });
 }

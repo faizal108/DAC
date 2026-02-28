@@ -2,6 +2,16 @@ function toUnit(um, unit) {
   return unit === "inch" ? um / 25400 : um / 1000;
 }
 
+function toSafeNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function asDxfNumber(value, precision = 6) {
+  const n = toSafeNumber(value);
+  return Number(n.toFixed(precision)).toString();
+}
+
 function lineToDxf(line, unit) {
   return [
     "0",
@@ -9,13 +19,17 @@ function lineToDxf(line, unit) {
     "8",
     "0",
     "10",
-    `${toUnit(line.start.x, unit)}`,
+    asDxfNumber(toUnit(line.start.x, unit)),
     "20",
-    `${toUnit(line.start.y, unit)}`,
+    asDxfNumber(toUnit(line.start.y, unit)),
+    "30",
+    "0",
     "11",
-    `${toUnit(line.end.x, unit)}`,
+    asDxfNumber(toUnit(line.end.x, unit)),
     "21",
-    `${toUnit(line.end.y, unit)}`,
+    asDxfNumber(toUnit(line.end.y, unit)),
+    "31",
+    "0",
   ].join("\n");
 }
 
@@ -26,30 +40,90 @@ function circleToDxf(circle, unit) {
     "8",
     "0",
     "10",
-    `${toUnit(circle.center.x, unit)}`,
+    asDxfNumber(toUnit(circle.center.x, unit)),
     "20",
-    `${toUnit(circle.center.y, unit)}`,
+    asDxfNumber(toUnit(circle.center.y, unit)),
+    "30",
+    "0",
     "40",
-    `${toUnit(circle.radius, unit)}`,
+    asDxfNumber(toUnit(circle.radius, unit)),
   ].join("\n");
 }
 
-function polylineToDxf(polyline, unit) {
-  const chunks = ["0", "LWPOLYLINE", "8", "0", "90", `${polyline.points.length}`];
+function pointToDxf(point, unit) {
+  return [
+    "0",
+    "POINT",
+    "8",
+    "0",
+    "10",
+    asDxfNumber(toUnit(point.x, unit)),
+    "20",
+    asDxfNumber(toUnit(point.y, unit)),
+    "30",
+    "0",
+  ].join("\n");
+}
 
-  for (const p of polyline.points) {
-    chunks.push("10", `${toUnit(p.x, unit)}`, "20", `${toUnit(p.y, unit)}`);
+function polylinePointsToDxf(points, unit, closed = false) {
+  if (points.length < 2) return "";
+  const chunks = [
+    "0",
+    "POLYLINE",
+    "8",
+    "0",
+    "66",
+    "1",
+    "70",
+    closed ? "1" : "0",
+  ];
+
+  for (const p of points) {
+    chunks.push(
+      "0",
+      "VERTEX",
+      "8",
+      "0",
+      "10",
+      asDxfNumber(toUnit(p.x, unit)),
+      "20",
+      asDxfNumber(toUnit(p.y, unit)),
+      "30",
+      "0",
+    );
   }
 
+  chunks.push("0", "SEQEND");
   return chunks.join("\n");
+}
+
+function polylineToDxf(polyline, unit) {
+  const points = Array.isArray(polyline?.points) ? polyline.points : [];
+  return polylinePointsToDxf(points, unit, false);
 }
 
 export function exportSceneToDxf(entities, unit = "mm") {
   const body = [];
+  const lineVertexPoints = new Map();
+
   for (const e of entities) {
-    if (e.type === "LINE") body.push(lineToDxf(e.geometry, unit));
+    if (e.type === "POINT") body.push(pointToDxf(e.geometry, unit));
+    if (e.type === "LINE") {
+      body.push(lineToDxf(e.geometry, unit));
+      const a = e.geometry?.start;
+      const b = e.geometry?.end;
+      if (a) lineVertexPoints.set(`${a.x},${a.y}`, a);
+      if (b) lineVertexPoints.set(`${b.x},${b.y}`, b);
+    }
     if (e.type === "CIRCLE") body.push(circleToDxf(e.geometry, unit));
-    if (e.type === "POLYLINE") body.push(polylineToDxf(e.geometry, unit));
+    if (e.type === "POLYLINE") {
+      const poly = polylineToDxf(e.geometry, unit);
+      if (poly) body.push(poly);
+    }
+  }
+
+  for (const p of lineVertexPoints.values()) {
+    body.push(pointToDxf(p, unit));
   }
 
   const insUnitsCode = unit === "inch" ? "1" : "4"; // 1 inch, 4 mm
@@ -60,9 +134,59 @@ export function exportSceneToDxf(entities, unit = "mm") {
     "2",
     "HEADER",
     "9",
+    "$ACADVER",
+    "1",
+    "AC1009",
+    "9",
     "$INSUNITS",
     "70",
     insUnitsCode,
+    "0",
+    "ENDSEC",
+    "0",
+    "SECTION",
+    "2",
+    "TABLES",
+    "0",
+    "TABLE",
+    "2",
+    "LTYPE",
+    "70",
+    "1",
+    "0",
+    "LTYPE",
+    "2",
+    "CONTINUOUS",
+    "70",
+    "64",
+    "3",
+    "Solid line",
+    "72",
+    "65",
+    "73",
+    "0",
+    "40",
+    "0.0",
+    "0",
+    "ENDTAB",
+    "0",
+    "TABLE",
+    "2",
+    "LAYER",
+    "70",
+    "1",
+    "0",
+    "LAYER",
+    "2",
+    "0",
+    "70",
+    "0",
+    "62",
+    "7",
+    "6",
+    "CONTINUOUS",
+    "0",
+    "ENDTAB",
     "0",
     "ENDSEC",
     "0",
@@ -73,7 +197,14 @@ export function exportSceneToDxf(entities, unit = "mm") {
     "0",
     "ENDSEC",
     "0",
+    "SECTION",
+    "2",
+    "OBJECTS",
+    "0",
+    "ENDSEC",
+    "0",
     "EOF",
+    "",
   ].join("\n");
 }
 
@@ -137,10 +268,10 @@ export function downloadFile(name, data, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-export function exportCanvasImage(canvas) {
+export function exportCanvasImage(canvas, name = "workspace") {
   const url = canvas.toDataURL("image/png");
   const a = document.createElement("a");
   a.href = url;
-  a.download = "workspace.png";
+  a.download = `${name}.png`;
   a.click();
 }

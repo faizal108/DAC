@@ -124,6 +124,30 @@ function computeSceneBounds(entities) {
   return { minX, minY, maxX, maxY };
 }
 
+function makeAutoProjectName() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  return `workspace_${y}${m}${d}_${hh}${mm}${ss}`;
+}
+
+function toFileStem(name, fallback = "workspace") {
+  const raw = String(name ?? "").trim();
+  const noExt = raw.replace(/\.[^/.\\]+$/u, "");
+  const withoutControls = Array.from(noExt, (ch) =>
+    ch.charCodeAt(0) < 32 ? "_" : ch,
+  ).join("");
+  const safe = withoutControls
+    .replace(/[<>:"/\\|?*]/gu, "_")
+    .replace(/\s+/gu, "_");
+  const compact = safe.replace(/_+/gu, "_").replace(/^_+|_+$/gu, "");
+  return compact || fallback;
+}
+
 export function App() {
   const { auth, config } = usePlatform();
 
@@ -191,6 +215,9 @@ export function App() {
     autoCenter: config.get("ui.autoCenter") ?? false,
     debugIO: config.get("ui.debugIO") ?? true,
   }));
+  const [projectName, setProjectName] = useState(
+    () => String(config.get("ui.projectName") || "").trim() || makeAutoProjectName(),
+  );
   const [wifiProfiles, setWifiProfiles] = useState(() => {
     const profiles = config.get("ui.wifiProfiles");
     return Array.isArray(profiles) && profiles.length ? profiles : defaultWifiProfiles();
@@ -522,6 +549,11 @@ export function App() {
     });
   }
 
+  function updateProjectName(nextName) {
+    setProjectName(nextName);
+    config.set("ui.projectName", nextName);
+  }
+
   function toggleLeftMenu() {
     const next = !leftMenuCollapsed;
     setLeftMenuCollapsed(next);
@@ -642,6 +674,7 @@ export function App() {
     });
     mgr.clear();
     savedSceneVersionRef.current = scene.version;
+    updateProjectName(makeAutoProjectName());
     resetZoom();
   }
 
@@ -929,8 +962,11 @@ export function App() {
   function exportJson() {
     const scene = sceneRef.current;
     if (!scene) return;
-    const json = JSON.stringify(Serializer.serialize(scene), null, 2);
-    downloadFile("workspace.json", json, "application/json");
+    const fileStem = toFileStem(projectName);
+    const data = Serializer.serialize(scene);
+    data.meta = { ...(data.meta || {}), name: projectName };
+    const json = JSON.stringify(data, null, 2);
+    downloadFile(`${fileStem}.json`, json, "application/json");
     savedSceneVersionRef.current = scene.version;
   }
 
@@ -940,7 +976,7 @@ export function App() {
     return scene.version !== savedSceneVersionRef.current;
   }
 
-  function applyLoadedScene(data) {
+  function applyLoadedScene(data, sourceFileName = "") {
     const scene = sceneRef.current;
     const mgr = commandMgrRef.current;
     if (!scene || !mgr) return;
@@ -977,6 +1013,9 @@ export function App() {
     }
 
     mgr.clear();
+    const loadedName =
+      String(data?.meta?.name || "").trim() || toFileStem(sourceFileName, "");
+    if (loadedName) updateProjectName(loadedName);
     savedSceneVersionRef.current = scene.version;
     fitDrawingInView();
   }
@@ -993,7 +1032,7 @@ export function App() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      applyLoadedScene(data);
+      applyLoadedScene(data, file.name);
       pushDebug(`Loaded ${file.name}`);
     } catch {
       pushDebug("Open failed: invalid JSON");
@@ -1003,28 +1042,31 @@ export function App() {
   function exportDxf() {
     const scene = sceneRef.current;
     if (!scene) return;
+    const fileStem = toFileStem(projectName);
     const dxf = exportSceneToDxf(scene.getAll(), settings.measure);
-    downloadFile(`workspace_${settings.measure}.dxf`, dxf, "application/dxf");
+    downloadFile(`${fileStem}_${settings.measure}.dxf`, dxf, "application/dxf");
   }
 
   function exportImage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    exportCanvasImage(canvas);
+    exportCanvasImage(canvas, toFileStem(projectName));
   }
 
   function exportGcode() {
     const scene = sceneRef.current;
     if (!scene) return;
+    const fileStem = toFileStem(projectName);
     const gcode = exportSceneToGcode(scene.getAll(), settings.measure);
-    downloadFile(`workspace_${settings.measure}.gcode`, gcode, "text/plain");
+    downloadFile(`${fileStem}_${settings.measure}.gcode`, gcode, "text/plain");
   }
 
   function exportCsv() {
     const scene = sceneRef.current;
     if (!scene) return;
+    const fileStem = toFileStem(projectName);
     const csv = exportSceneToCsv(scene.getAll(), settings.measure);
-    downloadFile(`workspace_${settings.measure}.csv`, csv, "text/csv");
+    downloadFile(`${fileStem}_${settings.measure}.csv`, csv, "text/csv");
   }
 
   function runAction(actionId, payload) {
@@ -1082,6 +1124,7 @@ export function App() {
     if (actionId === "machine.clearDebug") setDebugLogs([]);
 
     if (actionId === "file.save") exportJson();
+    if (actionId === "file.name") updateProjectName(payload);
     if (actionId === "file.new") requestSafeAction("new");
     if (actionId === "file.open") requestSafeAction("open");
     if (actionId === "file.export.dxf") exportDxf();
@@ -1119,6 +1162,14 @@ export function App() {
           id: "file-main",
           label: "Project",
           items: [
+            {
+              id: "file-name",
+              type: "input",
+              label: "Project Name",
+              action: "file.name",
+              value: projectName,
+              placeholder: "workspace_20260228_153000",
+            },
             {
               id: "new",
               label: "New",
@@ -1567,6 +1618,7 @@ export function App() {
     status.capture,
     wifiProfiles,
     activeWifiProfileId,
+    projectName,
   ]);
 
   const activeMenuLabel =

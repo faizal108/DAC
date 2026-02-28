@@ -84,6 +84,13 @@ function buildWifiUrl(settings) {
   return `${proto}://${host}:${port}${path}`;
 }
 
+function quoteCommandArg(value) {
+  const safe = String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+  return `"${safe}"`;
+}
+
 function computeSceneBounds(entities) {
   let minX = Infinity;
   let minY = Infinity;
@@ -172,6 +179,10 @@ export function App() {
     wifiPort: config.get("ui.wifiPort") || "81",
     wifiPath: config.get("ui.wifiPath") || "/",
     wifiProfileName: config.get("ui.wifiProfileName") || "My Device",
+    wifiSsid: config.get("ui.wifiSsid") || "",
+    wifiPassword: config.get("ui.wifiPassword") || "",
+    wifiDeviceHost: config.get("ui.wifiDeviceHost") || "dac-esp",
+    wifiDevicePort: config.get("ui.wifiDevicePort") || "81",
     grid: config.get("ui.grid") ?? true,
     snap: config.get("ui.snap") ?? true,
     showPoints: config.get("ui.showPoints") ?? false,
@@ -689,6 +700,84 @@ export function App() {
     machineSessionRef.current?.start();
   }
 
+  function sendControllerCommand(command, options = {}) {
+    const { serialOnly = false } = options;
+    if (serialOnly && settings.machineSource !== "serial") {
+      setWarningModal({
+        open: true,
+        message:
+          "Switch Input Source to Serial Bridge before sending WiFi setup commands.",
+      });
+      return false;
+    }
+    if (!isMachineConnected()) {
+      setWarningModal({
+        open: true,
+        message: "Machine is disconnected. Connect first and retry command.",
+      });
+      return false;
+    }
+
+    const sent = sendMachineCommand(wsRef.current, command, settings.machineSource);
+    if (settings.debugIO && sent) pushDebug(`TX ${command}`);
+    return sent;
+  }
+
+  function applyWifiProvisioning() {
+    const ssid = String(settings.wifiSsid || "").trim();
+    const pass = String(settings.wifiPassword || "");
+    const host = String(settings.wifiDeviceHost || "").trim();
+    const port = String(settings.wifiDevicePort || "").trim();
+
+    if (!ssid) {
+      setWarningModal({ open: true, message: "WiFi SSID is required." });
+      return;
+    }
+    if (!pass) {
+      setWarningModal({ open: true, message: "WiFi password is required." });
+      return;
+    }
+    if (!port || Number.isNaN(Number(port))) {
+      setWarningModal({ open: true, message: "WiFi WS Port must be a number." });
+      return;
+    }
+
+    sendControllerCommand(`wifi set ssid ${quoteCommandArg(ssid)}`, {
+      serialOnly: true,
+    });
+    sendControllerCommand(`wifi set pass ${quoteCommandArg(pass)}`, {
+      serialOnly: true,
+    });
+    sendControllerCommand(`wifi set port ${port}`, { serialOnly: true });
+    if (host) {
+      sendControllerCommand(`wifi set host ${quoteCommandArg(host)}`, {
+        serialOnly: true,
+      });
+    }
+  }
+
+  function saveAndConnectWifi() {
+    applyWifiProvisioning();
+    sendControllerCommand("wifi save", { serialOnly: true });
+    sendControllerCommand("wifi connect", { serialOnly: true });
+  }
+
+  function applyProvisionedHostname() {
+    const host = String(settings.wifiDeviceHost || "").trim();
+    if (!host) {
+      setWarningModal({
+        open: true,
+        message: "Device Hostname is empty. Set hostname first.",
+      });
+      return;
+    }
+    updateSetting("wifiHost", `${host}.local`);
+    updateSetting("wifiPort", String(settings.wifiDevicePort || "81"));
+    updateSetting("wifiProtocol", "ws");
+    updateSetting("wifiPath", "/");
+    pushDebug(`WiFi socket target set to ws://${host}.local:${settings.wifiDevicePort || "81"}`);
+  }
+
   function stopCapture() {
     const session = machineSessionRef.current;
     const mgr = commandMgrRef.current;
@@ -980,6 +1069,16 @@ export function App() {
     if (actionId === "machine.wifiHost") updateSetting("wifiHost", payload);
     if (actionId === "machine.wifiPort") updateSetting("wifiPort", payload);
     if (actionId === "machine.wifiPath") updateSetting("wifiPath", payload);
+    if (actionId === "machine.wifiSsid") updateSetting("wifiSsid", payload);
+    if (actionId === "machine.wifiPassword") updateSetting("wifiPassword", payload);
+    if (actionId === "machine.wifiDeviceHost") updateSetting("wifiDeviceHost", payload);
+    if (actionId === "machine.wifiDevicePort") updateSetting("wifiDevicePort", payload);
+    if (actionId === "machine.wifiApply") applyWifiProvisioning();
+    if (actionId === "machine.wifiSaveConnect") saveAndConnectWifi();
+    if (actionId === "machine.wifiStatus") {
+      sendControllerCommand("wifi status", { serialOnly: true });
+    }
+    if (actionId === "machine.wifiUseHostname") applyProvisionedHostname();
     if (actionId === "machine.clearDebug") setDebugLogs([]);
 
     if (actionId === "file.save") exportJson();
@@ -1215,6 +1314,70 @@ export function App() {
           id: "machine-ops",
           label: "Capture",
           items: machineItems,
+        },
+        {
+          id: "machine-wifi-provision",
+          label: "WiFi Provisioning (Serial)",
+          items: [
+            {
+              id: "wifi-device-host",
+              type: "input",
+              label: "Device Hostname",
+              action: "machine.wifiDeviceHost",
+              value: settings.wifiDeviceHost,
+              placeholder: "dac-esp",
+            },
+            {
+              id: "wifi-device-port",
+              type: "input",
+              label: "Device WS Port",
+              action: "machine.wifiDevicePort",
+              value: settings.wifiDevicePort,
+              inputType: "number",
+              placeholder: "81",
+            },
+            {
+              id: "wifi-device-ssid",
+              type: "input",
+              label: "WiFi SSID",
+              action: "machine.wifiSsid",
+              value: settings.wifiSsid,
+              placeholder: "Hotspot/WiFi name",
+            },
+            {
+              id: "wifi-device-pass",
+              type: "input",
+              label: "WiFi Password",
+              action: "machine.wifiPassword",
+              value: settings.wifiPassword,
+              inputType: "password",
+              placeholder: "WiFi password",
+            },
+            {
+              id: "wifi-apply",
+              label: "Send WiFi Config",
+              icon: "WF",
+              action: "machine.wifiApply",
+            },
+            {
+              id: "wifi-save-connect",
+              label: "Save + Connect",
+              icon: "CN",
+              action: "machine.wifiSaveConnect",
+            },
+            {
+              id: "wifi-status",
+              label: "WiFi Status",
+              icon: "ST",
+              action: "machine.wifiStatus",
+            },
+            {
+              id: "wifi-use-hostname",
+              label: "Use Hostname (.local)",
+              icon: "MD",
+              action: "machine.wifiUseHostname",
+            },
+          ],
         },
       ];
     }

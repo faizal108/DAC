@@ -6,6 +6,8 @@ export class CanvasRenderer {
     this.ctx = canvas.getContext("2d");
     this.transform = transform;
     this.showGrid = true;
+    // World unit is micrometers (um). 1000um = 1mm.
+    this.gridSpacingUm = 1000;
     this.showPoints = false;
     this.showLinePointLabels = false;
   }
@@ -140,14 +142,15 @@ export class CanvasRenderer {
     this.drawSelection(entities, selection);
   }
 
-  drawGrid(spacingMm = 10) {
+  drawGrid() {
     const ctx = this.ctx;
     const tf = this.transform;
 
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
 
-    const spacingPx = spacingMm * tf.scale;
+    const spacingUm = Math.max(1, Number(this.gridSpacingUm) || 1000);
+    const spacingPx = (spacingUm / 1000) * tf.scale;
     if (!Number.isFinite(spacingPx) || spacingPx < 8) return;
 
     ctx.save();

@@ -6,8 +6,9 @@ export class Viewport {
   constructor(transform, canvas) {
     this.transform = transform;
     this.canvas = canvas;
-    this.minScale = 2;
-    this.maxScale = 200;
+    // Keep a very low floor so large drawings can still fit.
+    this.minScale = 0.02;
+    this.maxScale = 5000;
 
     this._dragging = false;
     this._last = null;

@@ -4,6 +4,7 @@
 export class BaseTool {
   constructor(workspace) {
     this.ws = workspace;
+    this.useSnap = true;
   }
 
   onMouseDown() {}

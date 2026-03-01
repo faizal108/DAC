@@ -41,13 +41,26 @@ export class Selection {
   /**
    * Select by point (click)
    */
-  selectAt(point, tol = 200) {
-    this.clear();
-
+  selectAt(point, tol = 200, mode = "replace") {
     const hits = this._hitTest(point, tol);
+    const hitId = hits.length ? hits[0].id : null;
 
-    if (hits.length) {
-      this._ids.add(hits[0].id);
+    if (mode === "replace") {
+      this.clear();
+      if (hitId) this._ids.add(hitId);
+      return this.getAll();
+    }
+
+    if (!hitId) return this.getAll();
+
+    if (mode === "toggle") {
+      this.toggle(hitId);
+      return this.getAll();
+    }
+
+    if (mode === "add") {
+      this.add(hitId);
+      return this.getAll();
     }
 
     return this.getAll();
@@ -56,9 +69,10 @@ export class Selection {
   /**
    * Box selection
    */
-  selectInBox(minX, minY, maxX, maxY) {
-    this.clear();
+  selectInBox(minX, minY, maxX, maxY, mode = "replace") {
+    if (mode === "replace") this.clear();
 
+    const hits = [];
     for (const e of this._scene.getAll()) {
       if (!this._isSelectable(e)) continue;
 
@@ -71,9 +85,16 @@ export class Selection {
         box.minY >= minY &&
         box.maxY <= maxY
       ) {
-        this._ids.add(e.id);
+        hits.push(e.id);
       }
     }
+
+    if (mode === "toggle") {
+      for (const id of hits) this.toggle(id);
+      return this.getAll();
+    }
+
+    for (const id of hits) this._ids.add(id);
 
     return this.getAll();
   }

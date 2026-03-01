@@ -17,19 +17,27 @@ export class Viewport {
   }
 
   _bind() {
-    // Zoom
+    // Trackpad / wheel:
+    // - ctrl/cmd + wheel => zoom
+    // - plain wheel / two-finger scroll => pan
     this.canvas.addEventListener(
       "wheel",
       (e) => {
         e.preventDefault();
 
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        if (e.ctrlKey || e.metaKey) {
+          const rect = this.canvas.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
 
-        // Exponential factor gives smoother zoom behavior than fixed jumps.
-        const factor = Math.exp(-e.deltaY * 0.0015);
-        this.zoomAt(x, y, factor);
+          // Exponential factor gives smoother zoom behavior than fixed jumps.
+          const factor = Math.exp(-e.deltaY * 0.0015);
+          this.zoomAt(x, y, factor);
+          return;
+        }
+
+        this.transform.offsetX -= e.deltaX;
+        this.transform.offsetY -= e.deltaY;
       },
       { passive: false },
     );
@@ -41,7 +49,7 @@ export class Viewport {
     // Pan
     this.canvas.addEventListener("mousedown", (e) => {
       const isPanTrigger =
-        e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey);
+        e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey);
       if (!isPanTrigger) return;
 
       this._dragging = true;

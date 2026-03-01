@@ -33,33 +33,36 @@ export class Workspace {
   }
 
   _onDown(e) {
+    const tool = this.tools.get();
     let p = this._worldPos(e);
-    if (this.snapEnabled) {
+    if (this.snapEnabled && tool?.useSnap !== false) {
       p = this.snap.snap(p, this.transform);
     }
-    this.tools.get()?.onMouseDown(p, e);
+    tool?.onMouseDown(p, e);
   }
 
   _onMove(e) {
+    const tool = this.tools.get();
     let p = this._worldPos(e);
 
     this.lastMouse = p;
 
     // Apply snap
-    if (this.snapEnabled) {
+    if (this.snapEnabled && tool?.useSnap !== false) {
       p = this.snap.snap(p, this.transform);
     }
 
-    this.tools.get()?.onMouseMove(p, e);
+    tool?.onMouseMove(p, e);
   }
 
   _onUp(e) {
+    const tool = this.tools.get();
     let p = this._worldPos(e);
-    if (this.snapEnabled) {
+    if (this.snapEnabled && tool?.useSnap !== false) {
       p = this.snap.snap(p, this.transform);
     }
 
-    this.tools.get()?.onMouseUp(p, e);
+    tool?.onMouseUp(p, e);
   }
 
   _onKey(e) {

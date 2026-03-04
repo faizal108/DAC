@@ -17,6 +17,13 @@
   --accent-hover: #1d4ed8;
   --accent-soft: #dbeafe;
 
+  /* ===== CAD Canvas Colors ===== */
+  --cad-line: #1d4ed8;
+  --cad-line-selected: #60a5fa;
+  --cad-grid: #d7deeb;
+  --cad-point: #2563eb;
+  --cad-point-selected: #f59e0b;
+
   /* ===== Borders & Shadows ===== */
   --border: #e5e7eb;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -61,6 +68,12 @@
   --accent: #5aa2ff;
   --accent-hover: #82b8ff;
   --accent-soft: #183557;
+
+  --cad-line: #93c5fd;
+  --cad-line-selected: #fcd34d;
+  --cad-grid: #233241;
+  --cad-point: #93c5fd;
+  --cad-point-selected: #fcd34d;
 
   --border: #324152;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);

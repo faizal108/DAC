@@ -6,8 +6,8 @@ export class CanvasRenderer {
     this.ctx = canvas.getContext("2d");
     this.transform = transform;
     this.showGrid = true;
-    // World unit is micrometers (um). 1000um = 1mm.
-    this.gridSpacingUm = 1000;
+    // World unit is micrometers (um). Grid auto-steps with zoom.
+    this.gridBaseUm = 1000;
     this.showPoints = false;
     this.showLinePointLabels = false;
     this.colors = {
@@ -188,9 +188,9 @@ export class CanvasRenderer {
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
 
-    const spacingUm = Math.max(1, Number(this.gridSpacingUm) || 1000);
+    const spacingUm = this._autoGridStepUm();
     const spacingPx = (spacingUm / 1000) * tf.scale;
-    if (!Number.isFinite(spacingPx) || spacingPx < 8) return;
+    if (!Number.isFinite(spacingPx) || spacingPx < 6) return;
 
     ctx.save();
     ctx.strokeStyle = this.colors.grid;
@@ -213,7 +213,54 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
+    // Draw a stronger major grid every 5 minor steps, like CAD feel.
+    const majorSpacingPx = spacingPx * 5;
+    if (majorSpacingPx >= 14) {
+      const majorColor = this._readCssVar("--border", this.colors.grid);
+      ctx.strokeStyle = majorColor;
+      const mx = tf.offsetX % majorSpacingPx;
+      const my = tf.offsetY % majorSpacingPx;
+
+      for (let x = mx; x < w; x += majorSpacingPx) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      for (let y = my; y < h; y += majorSpacingPx) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+    }
+
     ctx.restore();
+  }
+
+  _autoGridStepUm() {
+    // Choose a "nice" world step so on-screen spacing stays readable across zoom.
+    // Target about 28px between minor lines.
+    const targetPx = 28;
+    const scale = Math.max(0.000001, this.transform.scale);
+    const desiredUm = (targetPx * 1000) / scale;
+    const base = Math.max(1, Number(this.gridBaseUm) || 1000);
+    const normalized = desiredUm / base;
+    const nice = this._nice125(normalized);
+    return Math.max(1, nice * base);
+  }
+
+  _nice125(value) {
+    if (!Number.isFinite(value) || value <= 0) return 1;
+    const exp = Math.floor(Math.log10(value));
+    const f = value / 10 ** exp;
+    let nf = 1;
+    if (f <= 1) nf = 1;
+    else if (f <= 2) nf = 2;
+    else if (f <= 5) nf = 5;
+    else nf = 10;
+    return nf * 10 ** exp;
   }
 
   _drawMarker(x, y, selected = false) {

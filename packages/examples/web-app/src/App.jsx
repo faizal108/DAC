@@ -484,10 +484,6 @@ export function App() {
 
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.showGrid = settings.grid;
-    if (rendererRef.current) {
-      rendererRef.current.gridSpacingUm =
-        settings.measure === "inch" ? 25400 : 1000;
-    }
     if (rendererRef.current) rendererRef.current.showPoints = settings.showPoints;
     if (rendererRef.current) {
       rendererRef.current.showLinePointLabels = settings.showLinePoints;

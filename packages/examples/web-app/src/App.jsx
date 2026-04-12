@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import "./theme/tokens.css";
 import "./App.css";
@@ -73,6 +73,10 @@ function sendMachineCommand(socket, command, source = "serial") {
     socket.send(command);
   }
   return true;
+}
+
+function hasWebSerial() {
+  return typeof navigator !== "undefined" && "serial" in navigator;
 }
 
 function buildWifiUrl(settings) {
@@ -161,6 +165,11 @@ export function App() {
   const machineSessionRef = useRef(null);
   const rendererRef = useRef(null);
   const wsRef = useRef(null);
+  const handleMachinePayloadRef = useRef(null);
+  const pushDebugRef = useRef(null);
+  const usbPortRef = useRef(null);
+  const usbReaderRef = useRef(null);
+  const usbWriterRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const keepWsAliveRef = useRef(true);
   const connectWsRef = useRef(() => {});
@@ -236,12 +245,12 @@ export function App() {
   });
   const [toolHint, setToolHint] = useState("Select: click object");
 
-  function pushDebug(line) {
+  const pushDebug = useCallback((line) => {
     setDebugLogs((prev) => {
       const next = [...prev, `${new Date().toLocaleTimeString()} ${line}`];
       return next.slice(-30);
     });
-  }
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -249,6 +258,171 @@ export function App() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  const handleMachinePayload = useCallback((raw, sourceLabel) => {
+    let msg;
+    const text = typeof raw === "string" ? raw : String(raw ?? "");
+
+    try {
+      msg = JSON.parse(text);
+    } catch {
+      msg = null;
+    }
+
+    if (msg?.type === "POINT") {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`RX POINT x=${msg.x} y=${msg.y}${msg.unit ? ` unit=${msg.unit}` : ""}`);
+      }
+      machineSessionRef.current?.ingest(msg);
+      return;
+    }
+
+    if (msg?.type === "STATUS") {
+      setStatus((s) => ({
+        ...s,
+        connection: `CONNECTED (${sourceLabel})`,
+      }));
+      return;
+    }
+
+    if (msg?.type === "ACK") {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`ACK ${msg.command}`);
+      }
+      return;
+    }
+
+    if (msg?.type === "ERROR") {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`ERROR ${msg.message}`);
+      }
+      return;
+    }
+
+    if (text.trim()) {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`RX ${sourceLabel} ${text.trim()}`);
+      }
+      machineSessionRef.current?.ingest(text);
+    }
+  }, [pushDebug]);
+
+  useEffect(() => {
+    handleMachinePayloadRef.current = handleMachinePayload;
+  }, [handleMachinePayload]);
+  useEffect(() => {
+    pushDebugRef.current = pushDebug;
+  }, [pushDebug]);
+
+  function writeUsbCommand(command) {
+    const writer = usbWriterRef.current;
+    if (!writer) return false;
+
+    const payload = new TextEncoder().encode(`${String(command).trim()}\n`);
+    writer.write(payload).catch((err) => {
+      pushDebug(`USB write error: ${err?.message || err}`);
+      setStatus((s) => ({ ...s, connection: "DISCONNECTED (USB WEB)" }));
+    });
+    return true;
+  }
+
+  async function disconnectUsbSerial() {
+    const reader = usbReaderRef.current;
+    const writer = usbWriterRef.current;
+    const port = usbPortRef.current;
+
+    usbReaderRef.current = null;
+    usbWriterRef.current = null;
+    usbPortRef.current = null;
+
+    try {
+      await reader?.cancel();
+    } catch {
+      // ignore
+    }
+    try {
+      reader?.releaseLock();
+    } catch {
+      // ignore
+    }
+    try {
+      writer?.releaseLock();
+    } catch {
+      // ignore
+    }
+    try {
+      await port?.close();
+    } catch {
+      // ignore
+    }
+  }
+
+  async function connectUsbSerial() {
+    if (!hasWebSerial()) {
+      setWarningModal({
+        open: true,
+        message: "Web Serial is not supported in this browser. Use Chrome/Edge desktop.",
+      });
+      return;
+    }
+
+    await disconnectUsbSerial();
+
+    let port;
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+    } catch (err) {
+      pushDebug(`USB connect canceled/failed: ${err?.message || err}`);
+      return;
+    }
+
+    usbPortRef.current = port;
+    usbWriterRef.current = port.writable?.getWriter() || null;
+    setStatus((s) => ({ ...s, connection: "CONNECTED (USB WEB)" }));
+
+    const unit = settingsRef.current?.inputUnit || "um";
+    const sent = writeUsbCommand(`unit ${unit}`);
+    if (sent && settingsRef.current?.debugIO) {
+      pushDebug(`TX unit ${unit}`);
+    }
+
+    try {
+      const reader = port.readable?.getReader();
+      if (!reader) return;
+      usbReaderRef.current = reader;
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (usbPortRef.current === port) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let idx = buffer.indexOf("\n");
+        while (idx >= 0) {
+          const line = buffer.slice(0, idx).replace(/\r/g, "").trim();
+          buffer = buffer.slice(idx + 1);
+          if (line) handleMachinePayload(line, "USB");
+          idx = buffer.indexOf("\n");
+        }
+      }
+    } catch (err) {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`USB read error: ${err?.message || err}`);
+      }
+    } finally {
+      await disconnectUsbSerial();
+      setStatus((s) => ({ ...s, connection: "DISCONNECTED (USB WEB)" }));
+    }
+  }
+
+  function sendMachineCommandLocal(command, source = settings.machineSource) {
+    if (source === "usb-web") {
+      return writeUsbCommand(command);
+    }
+    return sendMachineCommand(wsRef.current, command, source);
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -266,6 +440,10 @@ export function App() {
       if (disposed || !keepWsAliveRef.current) return;
 
       const source = settingsRef.current?.machineSource || "serial";
+      if (source === "usb-web") {
+        setStatus((s) => ({ ...s, connection: "DISCONNECTED (USB WEB)" }));
+        return;
+      }
       const url =
         source === "wifi"
           ? buildWifiUrl(settingsRef.current || {})
@@ -282,65 +460,14 @@ export function App() {
         const unit = settingsRef.current?.inputUnit || "um";
         const sent = sendMachineCommand(socket, `unit ${unit}`, source);
         if (sent && settingsRef.current?.debugIO) {
-          pushDebug(`TX unit ${unit}`);
+          pushDebugRef.current?.(`TX unit ${unit}`);
         }
       };
       socket.onmessage = (e) => {
-        let msg;
-        try {
-          msg = JSON.parse(e.data);
-        } catch {
-          machineSessionRef.current?.ingest(e.data);
-          return;
-        }
-
-        if (msg.type === "POINT") {
-          if (settingsRef.current?.debugIO) {
-            pushDebug(`RX POINT x=${msg.x} y=${msg.y}${msg.unit ? ` unit=${msg.unit}` : ""}`);
-          }
-          machineSessionRef.current?.ingest(msg);
-          return;
-        }
-
-        if (msg.type === "STATUS") {
-          setStatus((s) => ({
-            ...s,
-            connection:
-              source === "wifi"
-                ? `CONNECTED (WIFI:${url})`
-                : `CONNECTED (${msg.serialPort || "SERIAL"})`,
-          }));
-          return;
-        }
-
-        if (msg.type === "ACK") {
-          if (settingsRef.current?.debugIO) {
-            pushDebug(`ACK ${msg.command}`);
-          }
-          setStatus((s) => ({
-            ...s,
-            connection: `ACK:${msg.command}`,
-          }));
-          setTimeout(() => {
-            setStatus((s) => ({ ...s, connection: "CONNECTED (WS)" }));
-          }, 1200);
-          return;
-        }
-
-        if (msg.type === "ERROR") {
-          if (settingsRef.current?.debugIO) {
-            pushDebug(`ERROR ${msg.message}`);
-          }
-          setStatus((s) => ({
-            ...s,
-            connection: `ERROR:${msg.message}`,
-          }));
-          return;
-        }
-
-        if (msg.type === "TEXT" && settingsRef.current?.debugIO) {
-          pushDebug(`SERIAL ${msg.text}`);
-        }
+        handleMachinePayloadRef.current?.(
+          e.data,
+          source === "wifi" ? "WIFI" : "SERIAL",
+        );
       };
       socket.onclose = () => {
         if (!keepWsAliveRef.current || disposed) return;
@@ -420,7 +547,9 @@ export function App() {
       canvas.addEventListener("mousemove", onMouseMove);
       canvas.addEventListener("wheel", onWheel, { passive: true });
 
-      connectWs();
+      if ((settingsRef.current?.machineSource || "serial") !== "usb-web") {
+        connectWs();
+      }
 
       function fitDrawingInViewLocal() {
         const bounds = computeSceneBounds(scene.getAll());
@@ -478,6 +607,7 @@ export function App() {
       keepWsAliveRef.current = false;
       clearTimeout(reconnectTimerRef.current);
       wsRef.current?.close();
+      disconnectUsbSerial();
       teardown?.();
     };
   }, []);
@@ -715,6 +845,9 @@ export function App() {
   }
 
   function isMachineConnected() {
+    if (settings.machineSource === "usb-web") {
+      return !!usbPortRef.current;
+    }
     const socket = wsRef.current;
     return !!socket && socket.readyState === 1;
   }
@@ -730,17 +863,17 @@ export function App() {
     }
 
     if (settings.debugIO) pushDebug("TX record");
-    sendMachineCommand(wsRef.current, "record", settings.machineSource);
+    sendMachineCommandLocal("record", settings.machineSource);
     machineSessionRef.current?.start();
   }
 
   function sendControllerCommand(command, options = {}) {
     const { serialOnly = false } = options;
-    if (serialOnly && settings.machineSource !== "serial") {
+    if (serialOnly && settings.machineSource !== "serial" && settings.machineSource !== "usb-web") {
       setWarningModal({
         open: true,
         message:
-          "Switch Input Source to Serial Bridge before sending WiFi setup commands.",
+          "Switch Input Source to Serial Bridge or USB (Web Serial) before sending WiFi setup commands.",
       });
       return false;
     }
@@ -752,7 +885,7 @@ export function App() {
       return false;
     }
 
-    const sent = sendMachineCommand(wsRef.current, command, settings.machineSource);
+    const sent = sendMachineCommandLocal(command, settings.machineSource);
     if (settings.debugIO && sent) pushDebug(`TX ${command}`);
     return sent;
   }
@@ -818,7 +951,7 @@ export function App() {
     if (!session || !mgr) return;
     session.stop();
     if (settings.debugIO) pushDebug("TX stop");
-    sendMachineCommand(wsRef.current, "stop", settings.machineSource);
+    sendMachineCommandLocal("stop", settings.machineSource);
     if (session.points.length < 2) return;
     mgr.execute(new CommitCaptureCommand([...session.points]));
     session.points = [];
@@ -832,7 +965,17 @@ export function App() {
     else startCapture();
   }
 
-  function toggleConnection() {
+  async function toggleConnection() {
+    if (settings.machineSource === "usb-web") {
+      if (usbPortRef.current) {
+        await disconnectUsbSerial();
+        setStatus((s) => ({ ...s, connection: "DISCONNECTED (USB WEB)" }));
+        return;
+      }
+      await connectUsbSerial();
+      return;
+    }
+
     const socket = wsRef.current;
     if (socket && socket.readyState <= 1) {
       keepWsAliveRef.current = false;
@@ -848,12 +991,18 @@ export function App() {
     connectWsRef.current();
   }
 
-  function reconnectMachineTransport() {
+  async function reconnectMachineTransport() {
+    await disconnectUsbSerial();
     const socket = wsRef.current;
     keepWsAliveRef.current = false;
     clearTimeout(reconnectTimerRef.current);
     if (socket && socket.readyState <= 1) {
       socket.close();
+    }
+
+    if ((settingsRef.current?.machineSource || "serial") === "usb-web") {
+      setStatus((s) => ({ ...s, connection: "DISCONNECTED (USB WEB)" }));
+      return;
     }
 
     keepWsAliveRef.current = true;
@@ -1086,18 +1235,21 @@ export function App() {
     if (actionId === "machine.stop") stopCapture();
     if (actionId === "machine.status") {
       if (settings.debugIO) pushDebug("TX status");
-      sendMachineCommand(wsRef.current, "status", settings.machineSource);
+      sendMachineCommandLocal("status", settings.machineSource);
     }
     if (actionId === "machine.inputUnit") {
       updateSetting("inputUnit", payload);
-      const sent = sendMachineCommand(
-        wsRef.current,
-        `unit ${payload}`,
-        settings.machineSource,
-      );
+      const sent = sendMachineCommandLocal(`unit ${payload}`, settings.machineSource);
       if (settings.debugIO && sent) pushDebug(`TX unit ${payload}`);
     }
     if (actionId === "machine.source") {
+      if (payload === "usb-web" && !hasWebSerial()) {
+        setWarningModal({
+          open: true,
+          message:
+            "Web Serial is not supported in this browser. Use Chrome/Edge desktop or choose other source.",
+        });
+      }
       updateSetting("machineSource", payload);
       reconnectMachineTransport();
     }
@@ -1232,6 +1384,7 @@ export function App() {
           options: [
             { value: "serial", label: "Serial Bridge" },
             { value: "wifi", label: "WiFi Socket" },
+            { value: "usb-web", label: "USB (Web Serial)" },
           ],
         },
         {

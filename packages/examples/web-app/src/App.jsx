@@ -20,7 +20,13 @@ import { usePlatform } from "./platform/PlatformContext";
 
 import { CanvasRenderer, ViewTransform, Viewport } from "@dac/renderer-canvas";
 import { Scene, Serializer } from "@dac/core-scene";
-import { CommandManager, CommitCaptureCommand } from "@dac/core-commands";
+import {
+  CommandManager,
+  CommitCaptureCommand,
+  AddEntityCommand,
+  RemoveEntityCommand,
+} from "@dac/core-commands";
+import { createPointInternal } from "@dac/core-geometry";
 import {
   CopyTool,
   CircleTool,
@@ -167,6 +173,8 @@ export function App() {
   const wsRef = useRef(null);
   const handleMachinePayloadRef = useRef(null);
   const pushDebugRef = useRef(null);
+  const applyRemoteRecordingStateRef = useRef(null);
+  const deleteSelectionRef = useRef(null);
   const usbPortRef = useRef(null);
   const usbReaderRef = useRef(null);
   const usbWriterRef = useRef(null);
@@ -243,6 +251,7 @@ export function App() {
     open: false,
     message: "",
   });
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, ids: [] });
   const [toolHint, setToolHint] = useState("Select: click object");
 
   const pushDebug = useCallback((line) => {
@@ -299,11 +308,40 @@ export function App() {
       return;
     }
 
-    if (text.trim()) {
+    if (msg?.type === "STATE") {
       if (settingsRef.current?.debugIO) {
-        pushDebug(`RX ${sourceLabel} ${text.trim()}`);
+        pushDebug(`STATE recording=${msg.recording ? 1 : 0}`);
       }
-      machineSessionRef.current?.ingest(text);
+      applyRemoteRecordingStateRef.current?.(!!msg.recording);
+      return;
+    }
+
+    // Serial-bridge wraps unrecognized lines as {type:"TEXT", text:"..."};
+    // USB (Web Serial) / raw serial deliver the line directly.
+    const line = msg?.type === "TEXT" && typeof msg.text === "string" ? msg.text : text;
+    const trimmedLine = line.trim();
+
+    const stateMatch = /^STATE\s+recording=([01])/i.exec(trimmedLine);
+    if (stateMatch) {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`RX ${sourceLabel} ${trimmedLine}`);
+      }
+      applyRemoteRecordingStateRef.current?.(stateMatch[1] === "1");
+      return;
+    }
+
+    if (/^(ACK|ERR)\b/i.test(trimmedLine)) {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`RX ${sourceLabel} ${trimmedLine}`);
+      }
+      return;
+    }
+
+    if (trimmedLine) {
+      if (settingsRef.current?.debugIO) {
+        pushDebug(`RX ${sourceLabel} ${trimmedLine}`);
+      }
+      machineSessionRef.current?.ingest(trimmedLine);
     }
   }, [pushDebug]);
 
@@ -828,6 +866,56 @@ export function App() {
     if (action === "open") doOpenFilePicker();
   }
 
+  function commitDelete(ids) {
+    const scene = sceneRef.current;
+    const mgr = commandMgrRef.current;
+    if (!scene || !mgr || !ids.length) return;
+
+    mgr.beginTransaction("Delete");
+    for (const id of ids) {
+      mgr.execute(new RemoveEntityCommand(id));
+    }
+    mgr.commitTransaction();
+    scene.selection.clear();
+  }
+
+  function deleteSelection() {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const ids = scene.selection.getAll();
+    if (!ids.length) return;
+
+    // Multi-entity deletes get a confirmation; a single delete (the common
+    // case while editing) goes through immediately — Ctrl+Z covers mistakes.
+    if (ids.length > 1) {
+      setDeleteConfirm({ open: true, ids });
+      return;
+    }
+    commitDelete(ids);
+  }
+
+  function resolveDeleteConfirm(choice) {
+    const ids = deleteConfirm.ids;
+    setDeleteConfirm({ open: false, ids: [] });
+    if (choice === "delete") commitDelete(ids);
+  }
+
+  useEffect(() => {
+    deleteSelectionRef.current = deleteSelection;
+  });
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable) return;
+      e.preventDefault();
+      deleteSelectionRef.current?.();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   function setTool(toolKey) {
     const ws = workspaceRef.current;
     if (!ws || !TOOL_FACTORY[toolKey]) return;
@@ -945,6 +1033,21 @@ export function App() {
     pushDebug(`WiFi socket target set to ws://${host}.local:${settings.wifiDevicePort || "81"}`);
   }
 
+  function commitCapturedPoints(session, mgr) {
+    if (!session || !mgr) return;
+    // A record+stop with no movement still yields exactly one point
+    // (the firmware always sends the starting position) — commit it as
+    // a POINT instead of silently dropping it.
+    if (session.points.length === 1) {
+      const p = session.points[0];
+      mgr.execute(new AddEntityCommand(createPointInternal(p.x, p.y)));
+    } else if (session.points.length >= 2) {
+      mgr.execute(new CommitCaptureCommand([...session.points]));
+    }
+    session.points = [];
+    session.preview = [];
+  }
+
   function stopCapture() {
     const session = machineSessionRef.current;
     const mgr = commandMgrRef.current;
@@ -952,10 +1055,7 @@ export function App() {
     session.stop();
     if (settings.debugIO) pushDebug("TX stop");
     sendMachineCommandLocal("stop", settings.machineSource);
-    if (session.points.length < 2) return;
-    mgr.execute(new CommitCaptureCommand([...session.points]));
-    session.points = [];
-    session.preview = [];
+    commitCapturedPoints(session, mgr);
   }
 
   function toggleCapture() {
@@ -964,6 +1064,27 @@ export function App() {
     if (session.state === "CAPTURING") stopCapture();
     else startCapture();
   }
+
+  // Mirrors the device's own recording state when it's toggled from the
+  // physical button, without re-sending the command it already acted on.
+  function applyRemoteRecordingState(isRecording) {
+    const session = machineSessionRef.current;
+    const mgr = commandMgrRef.current;
+    if (!session) return;
+
+    if (isRecording) {
+      if (session.state !== "CAPTURING") session.start();
+      return;
+    }
+
+    if (session.state !== "CAPTURING") return;
+    session.stop();
+    commitCapturedPoints(session, mgr);
+  }
+
+  useEffect(() => {
+    applyRemoteRecordingStateRef.current = applyRemoteRecordingState;
+  });
 
   async function toggleConnection() {
     if (settings.machineSource === "usb-web") {
@@ -1228,11 +1349,16 @@ export function App() {
     if (actionId === "tool.copy") setTool("copy");
     if (actionId === "tool.undo") undo();
     if (actionId === "tool.redo") redo();
+    if (actionId === "tool.delete") deleteSelection();
 
     if (actionId === "machine.connect") toggleConnection();
     if (actionId === "machine.captureToggle") toggleCapture();
     if (actionId === "machine.start") startCapture();
     if (actionId === "machine.stop") stopCapture();
+    if (actionId === "machine.zero") {
+      if (settings.debugIO) pushDebug("TX zero");
+      sendControllerCommand("zero");
+    }
     if (actionId === "machine.status") {
       if (settings.debugIO) pushDebug("TX status");
       sendMachineCommandLocal("status", settings.machineSource);
@@ -1501,6 +1627,14 @@ export function App() {
           active: status.capture === "CAPTURING",
         },
         {
+          id: "zero",
+          label: "Zero Encoders",
+          icon: "ZE",
+          action: "machine.zero",
+          disabled: status.capture === "CAPTURING",
+          tone: "warning",
+        },
+        {
           id: "status",
           label: "Controller Status",
           icon: "QS",
@@ -1749,6 +1883,13 @@ export function App() {
             disabled: !auth.can("ADVANCED_TRIM"),
           },
           {
+            id: "delete",
+            label: "Delete",
+            icon: "DL",
+            action: "tool.delete",
+            tone: "warning",
+          },
+          {
             id: "undo",
             label: "Undo",
             icon: "UN",
@@ -1919,6 +2060,19 @@ export function App() {
               >
                 OK
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm.open && (
+        <div className="modal-backdrop">
+          <div className="confirm-modal">
+            <h3>Delete {deleteConfirm.ids.length} Entities</h3>
+            <p>This will remove {deleteConfirm.ids.length} selected entities. You can undo with Ctrl+Z.</p>
+            <div className="confirm-actions">
+              <button onClick={() => resolveDeleteConfirm("delete")}>Delete</button>
+              <button onClick={() => resolveDeleteConfirm("cancel")}>Cancel</button>
             </div>
           </div>
         </div>

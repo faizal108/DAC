@@ -17,6 +17,10 @@ export function StatusBar({ status, measure, theme, inputUnit }) {
       {" | "}
       Theme:{theme}
       {" | "}
+      <span
+        className={`rec-dot${status.capture === "CAPTURING" ? " rec-dot--active" : ""}`}
+        aria-hidden="true"
+      />
       Capture:{status.capture}
       {" | "}
       Link:{status.connection}

@@ -12,3 +12,29 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
+
+.rec-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  opacity: 0.4;
+}
+
+.rec-dot--active {
+  background: #dc2626;
+  opacity: 1;
+  animation: rec-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes rec-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
